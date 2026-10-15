@@ -977,8 +977,7 @@ export default function LagosEmpireMapSimulator() {
         <div className="max-w-3xl mx-auto grid grid-cols-6 gap-1">
           {[
 
-<Map className="w-4 h-4" />
-{ id: "map", label: "Lagos Map", icon: },
+{ id: "map", label: "Lagos Map", icon: <Map className="w-4 h-4" /> },
             { id: "home", label: "My Home", icon: <Home className="w-4 h-4" /> },
             { id: "jobs", label: "Jobs/Work", icon: <Briefcase className="w-4 h-4" /> },
             { id: "school", label: "Lectures", icon: <GraduationCap className="w-4 h-4" /> },
