@@ -3,48 +3,61 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
-  Heart, Zap, Utensils, Sparkles, Tv, PaintBucket, 
+  Heart, Zap, Utensils, Sparkles, Tv, Home, Map,
   BedDouble, Armchair, Briefcase, GraduationCap, MapPin, 
-  CheckCircle2, Play, Lock, Building2, Car, Vote, Landmark,
-  Clock, Users, MessageSquare, FileCheck, Plane, ShieldAlert
+  Play, Lock, Building2, Car, Vote, Landmark, Clock, 
+  Flame, CloudRain, Sun, Moon, Award, MessageCircle, ShoppingBag
 } from "lucide-react";
 
-export default function LagosEmpireFullGame() {
+type AreaName = "Oshodi" | "Berger" | "Yaba" | "Surulere" | "Lekki";
+
+// DISTANCE MATRIX FOR REALISTIC BUS & CAB FARES BETWEEN AREAS
+const AREA_COORDS: Record<AreaName, number> = {
+  Berger: 1,
+  Oshodi: 2,
+  Yaba: 3,
+  Surulere: 4,
+  Lekki: 6,
+};
+
+export default function LagosEmpireMasterGame() {
   // 1. ONBOARDING
   const [isCreated, setIsCreated] = useState(false);
   const [username, setUsername] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
 
-  // 2. LIVE RUNNING GAME CLOCK (Hours, Days, Weeks)
-  const [gameHour, setGameHour] = useState(8); // Starts 8:00 AM
+  // 2. 15-MINUTE LIVE CLOCK, WEATHER & STAT DECAY ENGINE
+  const [gameHour, setGameHour] = useState(8);
+  const [gameMinute, setGameMinute] = useState(0); // 0, 15, 30, 45
   const [gameDay, setGameDay] = useState(1);
   const [gameWeek, setGameWeek] = useState(1);
+  const [weather, setWeather] = useState<"Sunny 32°C" | "Harmattan Haze" | "Heavy Lagos Rain" | "Warm Night">("Sunny 32°C");
 
-  // 3. CENTRAL BANK 300M RESERVE TRACKER & DUAL WALLETS
-  const [centralBankReserve, setCentralBankReserve] = useState(300000000); // 300M Cap visibly reduces!
-  const [starterBalance, setStarterBalance] = useState(50000);             // Non-withdrawable
-  const [earnedBalance, setEarnedBalance] = useState(0);                   // Withdrawable (Min 5M)
+  // 3. CENTRAL BANK 300M RESERVE, LOANS & DUAL WALLETS
+  const [centralBankReserve, setCentralBankReserve] = useState(300000000);
+  const [starterBalance, setStarterBalance] = useState(50000); // Non-withdrawable
+  const [earnedBalance, setEarnedBalance] = useState(0);       // Withdrawable (Min 5M)
+  const [bankLoanDebt, setBankLoanDebt] = useState(0);
 
-  // 4. CORE PLAYER STATS
-  const [area, setArea] = useState<"Oshodi" | "Berger" | "Yaba" | "Surulere" | "Lekki">("Oshodi");
-  const [health, setHealth] = useState(85);
-  const [energy, setEnergy] = useState(60);
-  const [hunger, setHunger] = useState(75);
+  // 4. LOCATION & CORE SURVIVAL STATS (DECAY OVER TIME!)
+  const [area, setArea] = useState<AreaName>("Oshodi");
+  const [health, setHealth] = useState(90);
+  const [energy, setEnergy] = useState(65);
+  const [hunger, setHunger] = useState(80);
   const [weight, setWeight] = useState(68.0);
   const [steeze, setSteeze] = useState(5);
-  const [citizenPoints, setCitizenPoints] = useState(10);
+  const [citizenPoints, setCitizenPoints] = useState(15);
 
-  // 5. MULTI-TIMER ENGINE (Handles simultaneous cooldowns for School, CAC, Bricklaying, Gigs, etc.)
+  // 5. MULTI-TIMER ENGINE (60s - 120s Minimum Countdowns)
   const [timers, setTimers] = useState<Record<string, number>>({});
-
   const startCooldown = (key: string, seconds: number) => {
     setTimers((prev) => ({ ...prev, [key]: seconds }));
   };
 
-  // Master 1-Second Ticker for Game Clock & All Active Countdowns
+  // MASTER TICKER: Updates Cooldowns (1s) + 15-Minute Clock & Stat Decay
   useEffect(() => {
     const interval = setInterval(() => {
-      // Advance All Active Countdowns
+      // 1. Tick all active countdown timers
       setTimers((prev) => {
         const next: Record<string, number> = {};
         for (const k in prev) {
@@ -53,21 +66,49 @@ export default function LagosEmpireFullGame() {
         return next;
       });
 
-      // Advance Game Clock (Every 10 real seconds = 1 in-game hour)
-      setGameHour((h) => {
-        if (h >= 23) {
-          setGameDay((d) => {
-            const nextDay = d + 1;
-            if (nextDay % 7 === 0) setGameWeek((w) => w + 1);
-            return nextDay;
-          });
-          setHustlesDoneToday(0);
-          setWorkedOfficeToday(false);
-          return 0;
-        }
-        return h + 1;
+      // 2. Advance 15-Minute Game Clock & Decay Belly/Energy/Health
+      setGameMinute((m) => {
+        if (m < 45) return m + 15;
+        // Hour rollover
+        setGameHour((h) => {
+          const nextH = h >= 23 ? 0 : h + 1;
+          // Update Weather based on time of day
+          if (nextH >= 20 || nextH <= 5) setWeather("Warm Night");
+          else if (nextH === 14 || nextH === 15) setWeather("Heavy Lagos Rain");
+          else if (nextH >= 6 && nextH <= 10) setWeather("Harmattan Haze");
+          else setWeather("Sunny 32°C");
+
+          if (h >= 23) {
+            setGameDay((d) => {
+              const nd = d + 1;
+              if (nd % 7 === 0) setGameWeek((w) => w + 1);
+              return nd;
+            });
+            setHustlesDoneToday(0);
+            setWorkedOfficeToday(false);
+          }
+          return nextH;
+        });
+
+        // AUTOMATIC STAT DECAY EVERY HOUR
+        setHunger((prevH) => {
+          const nextHunger = Math.max(0, prevH - 4);
+          if (nextHunger === 0) {
+            setHealth((hp) => Math.max(10, hp - 5)); // Starving damages health!
+          }
+          return nextHunger;
+        });
+        setEnergy((prevE) => {
+          const nextEnergy = Math.max(0, prevE - 3);
+          if (nextEnergy === 0) {
+            setHealth((hp) => Math.max(10, hp - 4)); // Exhaustion damages health!
+          }
+          return nextEnergy;
+        });
+
+        return 0;
       });
-    }, 1000);
+    }, 2000); // Every 2 real seconds = 15 in-game minutes
     return () => clearInterval(interval);
   }, []);
 
@@ -78,36 +119,9 @@ export default function LagosEmpireFullGame() {
     return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
   };
 
-  // 6. DETAILED EDUCATION & STUDY ABROAD STATE (Multi-Lecture Progression!)
-  const [education, setEducation] = useState("Uneducated");
-  const [enrolledProgram, setEnrolledProgram] = useState<{
-    id: string;
-    name: string;
-    totalClasses: number;
-    completedClasses: number;
-    deadlineDaysLeft: number;
-  } | null>(null);
-  const [hasAbroadVisa, setHasAbroadVisa] = useState<"None" | "Processing" | "Approved">("None");
-  const [ownedBlueprints, setOwnedBlueprints] = useState<string[]>([]);
-  const [cvScore, setCvScore] = useState(0);
-  const [outfit, setOutfit] = useState("Singlet & Bathroom Slippers");
-  const [hasCorporateSuit, setHasCorporateSuit] = useState(false);
-
-  // 7. HUSTLES, CORPORATE JOBS & SOCIAL GIGS (With Cooldowns!)
-  const [hustlesDoneToday, setHustlesDoneToday] = useState(0);
-  const [employedJob, setEmployedJob] = useState<{
-    title: string;
-    company: string;
-    area: "Oshodi" | "Berger" | "Yaba" | "Surulere" | "Lekki";
-    payPer3Days: number;
-  } | null>(null);
-  const [daysWorkedThisCycle, setDaysWorkedThisCycle] = useState(0);
-  const [workedOfficeToday, setWorkedOfficeToday] = useState(false);
-  const [gigProofInputs, setGigProofInputs] = useState<Record<string, string>>({});
-
-  // 8. 2D ROOM, AREA REAL ESTATE & FULL CAR GARAGE
+  // 6. HOME, COOKING STOVE/GAS & SHOPPING ILLUSTRATION STATES
   const [shelterType, setShelterType] = useState("Unpainted Single Room");
-  const [shelterArea, setShelterArea] = useState<"Oshodi" | "Berger" | "Yaba" | "Surulere" | "Lekki">("Oshodi");
+  const [shelterArea, setShelterArea] = useState<AreaName>("Oshodi");
   const [parkingSlots, setParkingSlots] = useState(0);
   const [wallColor, setWallColor] = useState("Unplastered");
   const [bedTier, setBedTier] = useState("Bare_Floor");
@@ -115,41 +129,70 @@ export default function LagosEmpireFullGame() {
   const [tvTier, setTvTier] = useState("None");
   const [hasLagosFlix, setHasLagosFlix] = useState(false);
   const [showTvModal, setShowTvModal] = useState(false);
-  const [carsOwned, setCarsOwned] = useState<string[]>([]);
 
-  // 9. CAC APPROVAL, C-of-O LAND & COMMERCIAL BUILDINGS
+  // Cooking Equipment
+  const [hasCookingStove, setHasCookingStove] = useState(false);
+  const [gasLevel, setGasLevel] = useState(0); // % of cooking gas remaining
+  const [rawFoodServings, setRawFoodServings] = useState(0);
+
+  // 7. OUTDOOR CITY MAP & CLICKABLE BUILDING MODAL
+  const [enteredBuilding, setEnteredBuilding] = useState<
+    "None" | "Furniture_Shop" | "Electronics_Shop" | "Gas_Kitchen_Shop" | "Eatery" | "Church_Social" | "Office_Building"
+  >("None");
+
+  // 8. EDUCATION, SCHOLARSHIPS, VISA & EXPENSIVE BLUEPRINTS
+  const [education, setEducation] = useState("Uneducated");
+  const [certificatesList, setCertificatesList] = useState<string[]>([]);
+  const [enrolledProgram, setEnrolledProgram] = useState<{
+    name: string;
+    totalClasses: number;
+    completedClasses: number;
+  } | null>(null);
+  const [hasScholarship, setHasScholarship] = useState(false);
+  const [abroadStatus, setAbroadStatus] = useState<"None" | "Visa_Granted" | "Admission_Pending" | "Admitted_30m_Window">("None");
+  const [ownedBlueprints, setOwnedBlueprints] = useState<string[]>([]);
+  const [cvScore, setCvScore] = useState(0);
+  const [outfit, setOutfit] = useState("Singlet & Slippers");
+  const [hasCorporateSuit, setHasCorporateSuit] = useState(false);
+
+  // 9. EXPANDED STREET HUSTLES, CORPORATE JOBS & SOCIAL GIGS
+  const [hustlesDoneToday, setHustlesDoneToday] = useState(0);
+  const [employedJob, setEmployedJob] = useState<{
+    title: string;
+    company: string;
+    area: AreaName;
+    payPer3Days: number;
+  } | null>(null);
+  const [daysWorkedThisCycle, setDaysWorkedThisCycle] = useState(0);
+  const [workedOfficeToday, setWorkedOfficeToday] = useState(false);
+  const [gigProofInputs, setGigProofInputs] = useState<Record<string, string>>({});
+
+  // 10. CAC, LAND C-OF-O, COMMERCIAL BUILDINGS & 10 CARS
   const [companyName, setCompanyName] = useState("");
   const [cacStatus, setCacStatus] = useState<"None" | "Processing" | "Approved">("None");
   const [cofoStatus, setCofoStatus] = useState<"None" | "Processing" | "Approved">("None");
   const [ownedBuildings, setOwnedBuildings] = useState<string[]>([]);
-  const [companyValuation, setCompanyValuation] = useState(0);
-  const [farmStatus, setFarmStatus] = useState<"None" | "Growing" | "Ready_To_Harvest" | "Rotten">("None");
+  const [carsOwned, setCarsOwned] = useState<string[]>([]);
 
-  // 10. STEP-BY-STEP POLITICS (Join Party -> Approval -> Buy Form -> Submit -> Shuffle -> Vote)
+  // 11. POLITICS & CITY BILLBOARD SLOTS
   const [partyStatus, setPartyStatus] = useState<"None" | "Pending_Approval" | "Member_JPC" | "Member_JSTD">("None");
   const [nominationStatus, setNominationStatus] = useState<"None" | "Form_Purchased" | "Submitted_Verified">("None");
-  const [shuffledFinalists, setShuffledFinalists] = useState<string[]>([
-    "Chief Balogun (JPC)", "Engr. Tunde (JPC)", "Madam Kemi (JSTD)"
-  ]);
-  const [hasPosterLive, setHasPosterLive] = useState(false);
+  const [cityBillboardText, setCityBillboardText] = useState("RENT THIS CITY BILLBOARD — Hire a Design Agency in Politics Tab!");
   const [hasVoted, setHasVoted] = useState(false);
 
-  // 11. COURTSHIP, COUPLE BOND & CITIZEN SOCIAL FEED
+  // 12. ORGANIC COURTSHIP (MEET IN BUILDINGS -> CHAT -> 10 DATES AT +10% BOND EACH)
   const [maritalStatus, setMaritalStatus] = useState<"Single" | "Courting" | "Married">("Single");
   const [partnerName, setPartnerName] = useState("None");
-  const [relationshipBond, setRelationshipBond] = useState(0); // Must hit 100% to marry!
-  const [socialPostInput, setSocialPostInput] = useState("");
-  const [socialFeed, setSocialFeed] = useState<{ author: string; text: string; time: string }[]>([
-    { author: "@tunde_lekki", text: "Just secured my Land C-of-O in Lekki! Looking for a certified Architect.", time: "2h ago" },
-    { author: "@chisom_yaba", text: "Completed my 8/8 ND Polytechnic lectures today! Who is hiring in Yaba?", time: "1h ago" },
-  ]);
+  const [relationshipBond, setRelationshipBond] = useState(0); // Starts at 10%, +10% per date (10 dates = 100%)
+  const [chatHistory, setChatHistory] = useState<string[]>([]);
 
-  const [activeTab, setActiveTab] = useState<"room" | "hustle" | "school" | "empire" | "politics" | "lifestyle">("room");
+  // NAVIGATION TABS
+  const [activeTab, setActiveTab] = useState<"home" | "city" | "jobs" | "school" | "empire" | "politics" | "profile">("home");
   const [logMessage, setLogMessage] = useState(
-    "Welcome to Lagos! Time is ticking in the top bar. Enroll in classes, respect cooldown timers, and build from scratch."
+    "Welcome to Lagos! Your 15-minute clock is running. Watch your Belly & Energy decay, step outside to the City Map, and build your life!"
   );
 
-  // HELPER: Spend Money
+  // SPEND MONEY HELPER
   const spendMoney = (cost: number): boolean => {
     const total = starterBalance + earnedBalance;
     if (total < cost) {
@@ -166,16 +209,29 @@ export default function LagosEmpireFullGame() {
     return true;
   };
 
+  // CALCULATE DISTANCE-BASED FARE BETWEEN CURRENT AREA & DESTINATION
+  const getTransportCosts = (dest: AreaName) => {
+    const dist = Math.abs(AREA_COORDS[area] - AREA_COORDS[dest]) || 1;
+    const rainMultiplier = weather === "Heavy Lagos Rain" ? 1.5 : 1;
+    return {
+      busCost: Math.round(1200 * dist * rainMultiplier),
+      cabCost: Math.round(3000 * dist * rainMultiplier),
+      trekEnergy: Math.min(45, 12 * dist),
+      trekHealthLoss: Math.min(8, 2 * dist),
+      timeSec: 15 * dist,
+    };
+  };
+
   if (!isCreated) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
           <div className="inline-block px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-full mb-3">
-            LAGOS EMPIRE — FULL REALISM ENGINE
+            LAGOS EMPIRE — INDOOR & OUTDOOR SIMULATOR
           </div>
-          <h1 className="text-2xl font-extrabold mb-2">Start Your Life From Scratch</h1>
+          <h1 className="text-2xl font-extrabold mb-2">Start Your Lagos Journey</h1>
           <p className="text-slate-400 text-sm mb-6">
-            Begin uneducated in an unpainted single room in Oshodi with a 50,000 g₦ survival stipend. Attend multi-lecture semesters, wait for CAC & C-of-O approvals, court a partner, and compete for office.
+            Start in an unpainted single room in Oshodi with 50,000 g₦. Cook at home or visit eateries, commute across 5 distinct areas, attend lectures, and track every achievement on your profile.
           </p>
 
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Citizen Name</label>
@@ -209,7 +265,7 @@ export default function LagosEmpireFullGame() {
             }}
             className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-xl transition text-sm"
           >
-            Enter Lagos (Start Week 1, Day 1)
+            Enter My Home in Oshodi (Claim 50,000 g₦)
           </button>
         </div>
       </div>
@@ -225,9 +281,9 @@ export default function LagosEmpireFullGame() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-28">
-      {/* TOP HEADER WITH LIVE RUNNING CLOCK & CENTRAL BANK RESERVE */}
-      <header className="bg-slate-900/95 backdrop-blur border-b border-slate-800 sticky top-0 z-30 px-4 py-3">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      {/* TOP HEADER: 15-MIN CLOCK, WEATHER, LOCATION & DUAL WALLETS */}
+      <header className="bg-slate-900/95 backdrop-blur border-b border-slate-800 sticky top-0 z-30 px-4 py-2.5">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center text-xl">
               {gender === "male" ? "👨🏾" : "👩🏾"}
@@ -235,30 +291,30 @@ export default function LagosEmpireFullGame() {
             <div>
               <div className="font-bold text-sm flex flex-wrap items-center gap-1.5">
                 {username}
-                {/* LIVE RUNNING CLOCK */}
-                <span className="text-[11px] px-2.5 py-0.5 bg-amber-500 text-slate-950 font-extrabold rounded-full flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Wk {gameWeek} • Day {gameDay} • {String(gameHour).padStart(2, "0")}:00
+                {/* 15-MINUTE RUNNING CLOCK */}
+                <span className="text-[11px] px-2 py-0.5 bg-amber-500 text-slate-950 font-extrabold rounded-full flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Wk {gameWeek} • Day {gameDay} • {String(gameHour).padStart(2, "0")}:{String(gameMinute).padStart(2, "0")}
                 </span>
-                <span className="text-[11px] px-2 py-0.5 bg-slate-800 rounded-full text-amber-400">{education}</span>
-                <span className="text-[11px] px-2 py-0.5 bg-rose-950 text-rose-300 border border-rose-700 rounded-full">
-                  {maritalStatus} {partnerName !== "None" && `with ${partnerName}`}
+                {/* LIVE WEATHER */}
+                <span className="text-[11px] px-2 py-0.5 bg-slate-800 text-cyan-300 rounded-full flex items-center gap-1">
+                  {weather.includes("Rain") ? <CloudRain className="w-3 h-3" /> : <Sun className="w-3 h-3" />} {weather}
                 </span>
               </div>
               <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
-                <span className="text-emerald-400 font-semibold">📍 Currently in: {area}</span>
-                • 🏠 Home: {shelterType} ({shelterArea}) • 🅿️ Parking: {carsOwned.length}/{parkingSlots}
+                <span className="text-emerald-400 font-bold">📍 Currently in: {area}</span>
+                • 🏠 Home: {shelterType} ({shelterArea}) • 💍 {maritalStatus}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
-              <div className="text-[10px] text-slate-400 uppercase">Starter/Deposit (Game Only)</div>
+              <div className="text-[10px] text-slate-400 uppercase">Starter / Deposit</div>
               <div className="font-extrabold text-sm text-amber-400">{starterBalance.toLocaleString()} g₦</div>
             </div>
             <div className="bg-slate-950 border border-emerald-900/60 rounded-xl px-3 py-1.5">
               <div className="text-[10px] text-emerald-400 uppercase flex items-center gap-1">
-                Withdrawable Wallet <Lock className="w-2.5 h-2.5" />
+                Earned Wallet <Lock className="w-2.5 h-2.5" />
               </div>
               <div className="font-extrabold text-sm text-emerald-400">{earnedBalance.toLocaleString()} g₦</div>
             </div>
@@ -267,16 +323,22 @@ export default function LagosEmpireFullGame() {
       </header>
 
       <main className="max-w-6xl mx-auto p-4 space-y-4">
-        {/* LIVE STATS BAR */}
+        {/* LIVE STATS BAR WITH DECAY WARNING */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
-          <StatBar icon={<Heart className="w-4 h-4 text-rose-400" />} label="Health" value={`${health}%`} pct={health} color="bg-rose-500" />
-          <StatBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Energy" value={`${energy}%`} pct={energy} color="bg-amber-500" />
-          <StatBar icon={<Utensils className="w-4 h-4 text-orange-400" />} label="Belly/Diet" value={`${hunger}%`} pct={hunger} color="bg-orange-500" />
-          <StatBar icon={<Sparkles className="w-4 h-4 text-cyan-400" />} label="Steeze" value={`${steeze} pts`} pct={Math.min(100, steeze)} color="bg-cyan-500" />
+          <StatBar icon={<Heart className="w-4 h-4 text-rose-400" />} label="Health (Auto-Decay)" value={`${health}%`} pct={health} color="bg-rose-500" />
+          <StatBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Energy (-3%/hr)" value={`${energy}%`} pct={energy} color="bg-amber-500" />
+          <StatBar icon={<Utensils className="w-4 h-4 text-orange-400" />} label="Belly (-4%/hr)" value={`${hunger}%`} pct={hunger} color="bg-orange-500" />
+          <StatBar icon={<Sparkles className="w-4 h-4 text-cyan-400" />} label="Steeze/Respect" value={`${steeze} pts`} pct={Math.min(100, steeze)} color="bg-cyan-500" />
           <div className="bg-slate-950 rounded-xl p-2 flex flex-col justify-center">
-            <span className="text-[10px] text-slate-400 uppercase">Weight • CV • Blueprints</span>
-            <span className="text-xs font-bold text-white">{weight}kg • CV:{cvScore}% • 📘{ownedBlueprints.length}/5</span>
+            <span className="text-[10px] text-slate-400 uppercase">Weight • CV • Gas</span>
+            <span className="text-xs font-bold text-white">{weight}kg • CV:{cvScore}% • 🔥Gas:{gasLevel}%</span>
           </div>
+        </div>
+
+        {/* CITY BILLBOARD BANNER (VISIBLE ACROSS LAGOS!) */}
+        <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-amber-950/60 border border-amber-500/40 rounded-xl px-4 py-2 flex items-center justify-between text-xs">
+          <span className="font-extrabold text-amber-300">📢 {area.toUpperCase()} CITY BILLBOARD:</span>
+          <span className="text-white font-semibold truncate ml-2">{cityBillboardText}</span>
         </div>
 
         {/* EVENT LOG */}
@@ -284,343 +346,662 @@ export default function LagosEmpireFullGame() {
           🔔 {logMessage}
         </div>
 
-        {/* CITY BUS STOP & COMMUTE BAR (5 AREAS) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-extrabold text-emerald-400 uppercase">
-            🚌 Commute Across Lagos {timers.commute ? `(Traveling: ${formatSecs(timers.commute)})` : `(In ${area})`}:
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {(["Oshodi", "Berger", "Yaba", "Surulere", "Lekki"] as const).map((dest) => (
-              <div key={dest} className="flex items-center gap-1 bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl">
-                <span className="font-bold text-white">{dest}:</span>
-                <button
-                  disabled={!!timers.commute || area === dest}
-                  onClick={() => {
-                    if (energy < 20) return setLogMessage("⚠️ Too tired to trek!");
-                    startCooldown("commute", 10);
-                    setLogMessage(`🚶🏾‍♂️ Trekking to ${dest} (10s)...`);
-                    setTimeout(() => {
-                      setArea(dest);
-                      setEnergy((p) => Math.max(0, p - 20));
-                      setWeight((p) => Number(Math.max(50, p - 0.4).toFixed(1)));
-                      setLogMessage(`🚶🏾‍♂️ Arrived in ${dest} on foot! (-20% Energy, -0.4kg)`);
-                    }, 10000);
-                  }}
-                  className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] disabled:opacity-40"
-                >
-                  Trek
-                </button>
-                <button
-                  disabled={!!timers.commute || area === dest}
-                  onClick={() => {
-                    if (!spendMoney(2500)) return;
-                    startCooldown("commute", 4);
-                    setLogMessage(`🚕 Taking cab to ${dest} (4s)...`);
-                    setTimeout(() => {
-                      setArea(dest);
-                      setLogMessage(`🚕 Arrived in ${dest} by Cab!`);
-                    }, 4000);
-                  }}
-                  className="px-1.5 py-0.5 bg-indigo-700 text-white rounded text-[10px] disabled:opacity-40"
-                >
-                  Cab (2.5k)
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* =====================================================================
-            TAB 1: 2D ROOM, APPLIANCES & TIMED EATERY COOLDOWN
+            TAB 1: 🏠 MY HOME (INDOOR VIEW + HOME COOKING VS EATERY)
            ===================================================================== */}
-        {activeTab === "room" && (
+        {activeTab === "home" && (
           <div className="grid md:grid-cols-3 gap-4">
-            <div className={`md:col-span-2 rounded-2xl border-2 p-6 relative min-h-[360px] flex flex-col justify-between transition-all ${wallBgMap[wallColor]}`}>
-              <div className="flex justify-between items-start gap-2">
-                <div className="space-y-1">
-                  <span className="bg-black/60 px-3 py-1 rounded-lg text-xs font-semibold block">
-                    🏠 {shelterType} in {shelterArea} ({parkingSlots} Parking Slots)
-                  </span>
-                  <span className="bg-black/60 px-3 py-1 rounded-lg text-xs text-amber-300 block">
-                    🧱 Wall: {wallColor} • 👔 Outfit: {outfit}
-                  </span>
+            <div className={`md:col-span-2 rounded-2xl border-2 p-6 relative min-h-[380px] flex flex-col justify-between transition-all ${wallBgMap[wallColor]}`}>
+              {area !== shelterArea ? (
+                <div className="my-auto text-center bg-black/75 p-6 rounded-2xl border border-rose-500/50 space-y-3">
+                  <div className="text-3xl">🚌</div>
+                  <h3 className="font-extrabold text-lg text-rose-400">You Are Currently Away in {area}!</h3>
+                  <p className="text-xs text-slate-300">
+                    Your home ({shelterType}) is located in <strong>{shelterArea}</strong>. You must take a Bus, Cab, or Trek back to {shelterArea} in the <strong>Outdoor City Map</strong> tab before you can enter your room or sleep!
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("city")}
+                    className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl text-xs"
+                  >
+                    Go to Outdoor City Map to Commute Home
+                  </button>
                 </div>
-
-                <div>
-                  {tvTier === "None" ? (
-                    <div className="border border-dashed border-white/20 rounded-xl px-4 py-3 text-xs text-white/40">
-                      No TV Mounted
+              ) : (
+                <>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="space-y-1">
+                      <span className="bg-black/60 px-3 py-1 rounded-lg text-xs font-bold text-emerald-300 block">
+                        🏠 Inside My Home: {shelterType} ({shelterArea})
+                      </span>
+                      <span className="bg-black/60 px-3 py-1 rounded-lg text-xs text-amber-300 block">
+                        🧱 Wall: {wallColor} • 👔 Wearing: {outfit}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="bg-slate-950 border-2 border-slate-700 rounded-xl p-3 text-center">
-                      <Tv className="w-7 h-7 text-cyan-400 mx-auto mb-1" />
-                      <div className="text-xs font-bold">{tvTier}</div>
-                      <button
-                        onClick={() => {
-                          if (!hasLagosFlix) return setLogMessage("⚠️ Subscribe to LagosFlix (12,500 g₦) first!");
-                          setShowTvModal(true);
-                          setEnergy((p) => Math.min(100, p + 15));
-                        }}
-                        className="mt-2 px-3 py-1 bg-rose-600 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 mx-auto"
-                      >
-                        <Play className="w-3 h-3" /> Watch LagosFlix
-                      </button>
+
+                    {/* ILLUSTRATED TV CORNER */}
+                    <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-3 text-center min-w-[130px]">
+                      <div className="text-2xl mb-1">{tvTier === "None" ? "📦" : "📺"}</div>
+                      <div className="text-[11px] font-bold">{tvTier === "None" ? "No TV (Visit Shop)" : tvTier}</div>
+                      {tvTier !== "None" && (
+                        <button
+                          onClick={() => {
+                            if (!hasLagosFlix) return setLogMessage("⚠️ Subscribe to LagosFlix first!");
+                            setShowTvModal(true);
+                            setEnergy((p) => Math.min(100, p + 15));
+                          }}
+                          className="mt-1.5 px-2.5 py-1 bg-rose-600 text-white rounded text-[10px] font-bold"
+                        >
+                          ▶ Watch LagosFlix
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-white/10">
-                <div className="bg-black/45 rounded-xl p-3.5 flex items-center gap-3">
-                  <BedDouble className="w-7 h-7 text-amber-400 shrink-0" />
-                  <div>
-                    <div className="text-[11px] text-slate-300">Bed Tier</div>
-                    <div className="font-bold text-xs">{bedTier.replace("_", " ")}</div>
                   </div>
-                </div>
-                <div className="bg-black/45 rounded-xl p-3.5 flex items-center gap-3">
-                  <Armchair className="w-7 h-7 text-emerald-400 shrink-0" />
-                  <div>
-                    <div className="text-[11px] text-slate-300">Seating Tier</div>
-                    <div className="font-bold text-xs">{chairTier.replace("_", " ")}</div>
-                  </div>
-                </div>
-              </div>
 
-              {/* EATERY MEALS WITH DIGESTION COOLDOWN TIMER */}
-              <div className="mt-4 pt-4 border-t border-white/10 bg-black/40 p-3 rounded-xl space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-amber-300">🍽️ Eatery & Feeding (Requires Digestion Cooldown):</span>
-                  {timers.eat_cooldown && (
-                    <span className="bg-rose-600 text-white px-2 py-0.5 rounded font-bold">
-                      ⏳ Next Meal In: {formatSecs(timers.eat_cooldown)}
-                    </span>
-                  )}
-                </div>
-                <div className="grid sm:grid-cols-3 gap-2">
-                  {[
-                    { name: "Agege Bread & Garri", cost: 1500, en: 15, wt: 0.8, hp: -2, cd: 20 },
-                    { name: "Mama Put Amala & Ewedu", cost: 3500, en: 25, wt: 0.3, hp: 5, cd: 25 },
-                    { name: "Eatery Jollof, Fish & Salad", cost: 6500, en: 40, wt: -0.3, hp: 12, cd: 30 },
-                  ].map((m, i) => (
+                  {/* ILLUSTRATED FURNITURE CARDS */}
+                  <div className="grid grid-cols-3 gap-3 my-6">
+                    <div className="bg-black/50 border border-white/10 rounded-xl p-3 text-center">
+                      <div className="text-2xl mb-1">{bedTier === "Bare_Floor" ? "🪵" : bedTier === "Foam_Mattress" ? "🛏️" : "👑"}</div>
+                      <div className="text-[10px] text-slate-400">Sleeping Spot</div>
+                      <div className="font-bold text-xs">{bedTier.replace("_", " ")}</div>
+                    </div>
+                    <div className="bg-black/50 border border-white/10 rounded-xl p-3 text-center">
+                      <div className="text-2xl mb-1">{chairTier === "None" ? "🚫" : "🛋️"}</div>
+                      <div className="text-[10px] text-slate-400">Living Room</div>
+                      <div className="font-bold text-xs">{chairTier.replace("_", " ")}</div>
+                    </div>
+                    <div className="bg-black/50 border border-white/10 rounded-xl p-3 text-center">
+                      <div className="text-2xl mb-1">{hasCookingStove ? "🔥" : "🍳"}</div>
+                      <div className="text-[10px] text-slate-400">Kitchen Corner</div>
+                      <div className="font-bold text-xs">
+                        {hasCookingStove ? `Gas Stove (${gasLevel}%)` : "No Stove"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HOME KITCHEN COOKING BAR */}
+                  <div className="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="font-bold text-amber-300">🍲 Home Kitchen: </span>
+                      <span>Raw Food Stock: <strong>{rawFoodServings} Meals</strong> • Gas: <strong>{gasLevel}%</strong></span>
+                    </div>
                     <button
-                      key={i}
-                      disabled={!!timers.eat_cooldown}
+                      disabled={!!timers.cook_cd}
                       onClick={() => {
-                        if (!spendMoney(m.cost)) return;
-                        startCooldown("eat_cooldown", m.cd);
-                        setHunger((p) => Math.min(100, p + 35));
-                        setEnergy((p) => Math.min(100, p + m.en));
-                        setWeight((p) => Number((p + m.wt).toFixed(1)));
-                        setHealth((p) => Math.min(100, Math.max(20, p + m.hp)));
-                        setLogMessage(`🍲 Ate ${m.name}! Digestion cooldown active for ${m.cd}s.`);
+                        if (!hasCookingStove) return setLogMessage("❌ You don't own a Gas Stove! Go to 'Outdoor City' -> 'Gas & Kitchen Shop' to buy one.");
+                        if (gasLevel < 10) return setLogMessage("❌ Your gas cylinder is empty! Refill it at the Gas Shop.");
+                        if (rawFoodServings < 1) return setLogMessage("❌ No raw food in your kitchen! Buy raw foodstuffs at the Market/Shop.");
+                        startCooldown("cook_cd", 60);
+                        setGasLevel((g) => g - 10);
+                        setRawFoodServings((r) => r - 1);
+                        setHunger((h) => Math.min(100, h + 45));
+                        setEnergy((e) => Math.min(100, e + 35));
+                        setHealth((hp) => Math.min(100, hp + 10));
+                        setLogMessage("🍳 Cooked fresh home-made Jollof & Beans! (+45% Belly, +35% Energy, +10% Health. 60s kitchen timer).");
                       }}
-                      className="p-2 bg-slate-950/90 border border-slate-700 rounded-lg text-xs text-left disabled:opacity-40"
+                      className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
                     >
-                      <div className="font-bold">{m.name}</div>
-                      <div className="text-[10px] text-emerald-400">{m.cost.toLocaleString()} g₦ • +{m.en}% Energy</div>
+                      {timers.cook_cd ? `⏳ Cooking (${formatSecs(timers.cook_cd)})` : "🍳 Cook Meal at Home (Uses 1 Raw Food & 10% Gas)"}
                     </button>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
-              <h2 className="font-bold text-sm">Sleep & Room Upgrades</h2>
+            {/* HOME ACTIONS & PAINTING */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs">
+              <h2 className="font-bold text-sm">Home Controls & DIY Painting</h2>
               <button
-                disabled={!!timers.sleep_cd}
+                disabled={area !== shelterArea || !!timers.sleep_cd}
                 onClick={() => {
                   const maxCap = bedTier === "Bare_Floor" ? 60 : bedTier === "Foam_Mattress" ? 85 : 100;
-                  startCooldown("sleep_cd", 15);
+                  startCooldown("sleep_cd", 60);
                   setEnergy(maxCap);
                   setGameDay((d) => d + 1);
                   setHustlesDoneToday(0);
                   setWorkedOfficeToday(false);
-                  setLogMessage(`🛌 Slept overnight! Energy restored to ${maxCap}%. Advanced to Next Day!`);
+                  setLogMessage(`🛌 Slept in your ${shelterArea} home! Energy restored to ${maxCap}%.`);
                 }}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-extrabold text-white disabled:opacity-40"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-extrabold text-white disabled:opacity-40"
               >
-                {timers.sleep_cd ? `⏳ Sleeping (${formatSecs(timers.sleep_cd)})` : "🛌 Sleep Overnight (Next Day)"}
+                {area !== shelterArea
+                  ? `🔒 Return to ${shelterArea} to Sleep`
+                  : timers.sleep_cd
+                  ? `⏳ Sleeping (${formatSecs(timers.sleep_cd)})`
+                  : "🛌 Sleep Overnight (60s Rest)"}
               </button>
 
-              <div className="font-semibold text-slate-400 uppercase pt-1">DIY Paint Walls</div>
+              <div className="font-bold text-slate-400 uppercase pt-2">Paint Room Walls (60s Timer)</div>
               <div className="grid grid-cols-3 gap-1.5">
                 {(["Cream", "Emerald", "RoyalBlue"] as const).map((col) => (
                   <button
                     key={col}
-                    disabled={wallColor === col}
+                    disabled={wallColor === col || area !== shelterArea}
                     onClick={() => {
-                      if (spendMoney(20000)) {
+                      if (spendMoney(25000)) {
+                        startCooldown("paint_cd", 60);
                         setWallColor(col);
-                        setSteeze((p) => p + 10);
-                        setLogMessage(`🎨 Painted walls ${col}!`);
+                        setSteeze((p) => p + 15);
+                        setLogMessage(`🎨 Painted your home walls ${col}!`);
                       }
                     }}
                     className="p-2 bg-slate-950 border border-slate-800 rounded-lg disabled:opacity-40"
                   >
-                    {wallColor === col ? `✓ ${col}` : `${col} (20k)`}
+                    {wallColor === col ? `✓ ${col}` : `${col} (25k)`}
                   </button>
                 ))}
               </div>
 
-              <button
-                disabled={bedTier !== "Bare_Floor"}
-                onClick={() => { if (spendMoney(25000)) { setBedTier("Foam_Mattress"); setEnergy(85); setLogMessage("🛏️ Bought Foam Mattress!"); }}}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between disabled:opacity-40"
-              >
-                <span>{bedTier === "Bare_Floor" ? "Buy Foam Mattress (85% Cap)" : `✓ ${bedTier}`}</span>
-                <span className="text-amber-400 font-bold">25,000 g₦</span>
-              </button>
-
-              <button
-                disabled={chairTier !== "None"}
-                onClick={() => { if (spendMoney(35000)) { setChairTier("Cushion_Sofa"); setSteeze((p) => p + 10); setLogMessage("🛋️ Bought Cushion Sofa!"); }}}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between disabled:opacity-40"
-              >
-                <span>{chairTier === "None" ? "Buy Cushion Sofa Set" : "✓ Cushion Sofa"}</span>
-                <span className="text-amber-400 font-bold">35,000 g₦</span>
-              </button>
-
-              <button
-                disabled={tvTier !== "None"}
-                onClick={() => { if (spendMoney(60000)) { setTvTier("55-Inch Smart TV"); setSteeze((p) => p + 20); setLogMessage("📺 Bought Smart TV!"); }}}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between disabled:opacity-40"
-              >
-                <span>{tvTier === "None" ? "Buy 55-Inch Smart TV" : "✓ Smart TV"}</span>
-                <span className="text-amber-400 font-bold">60,000 g₦</span>
-              </button>
-
-              <button
-                disabled={hasLagosFlix}
-                onClick={() => { if (spendMoney(12500)) { setHasLagosFlix(true); setLogMessage("🍿 LagosFlix Active!"); }}}
-                className="w-full p-2.5 bg-rose-950/50 border border-rose-800 rounded-xl flex justify-between disabled:opacity-40"
-              >
-                <span>{hasLagosFlix ? "✓ LagosFlix Subscribed" : "Subscribe LagosFlix"}</span>
-                <span className="text-rose-400 font-bold">12,500 g₦</span>
-              </button>
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                <div className="font-bold text-emerald-400">🛍️ Want to Buy Bed, TV, Sofa or Gas Stove?</div>
+                <p className="text-slate-400 text-[11px]">
+                  Step outside into the <strong>Outdoor City Map</strong> to enter the Furniture Showroom, Electronics Shop, or Gas & Kitchen Market!
+                </p>
+                <button
+                  onClick={() => setActiveTab("city")}
+                  className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                >
+                  🗺️ Step Outside to {area} City Map
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* =====================================================================
-            TAB 2: HUSTLE COOLDOWNS, CORPORATE PAYDAYS & 4-HOUR SOCIAL GIG TIMERS
+            TAB 2: 🗺️ OUTDOOR CITY MAP (AREAS, DISTANCE FARES & CLICKABLE BUILDINGS)
            ===================================================================== */}
-        {activeTab === "hustle" && (
-          <div className="grid md:grid-cols-3 gap-4 text-xs">
-            {/* BRICKLAYER & CATERING WITH MANDATORY COOLDOWN TIMERS */}
+        {activeTab === "city" && (
+          <div className="space-y-4 text-xs">
+            {/* DISTANCE-BASED INTER-AREA TRANSPORT TERMINAL */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <h2 className="font-bold text-sm text-amber-400">🧱 Street Hustles (Capped)</h2>
-                <span className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded-full font-bold">
-                  {hustlesDoneToday}/2 Today
+              <div className="flex flex-wrap justify-between items-center gap-2">
+                <h2 className="font-bold text-sm text-emerald-400">
+                  🚌 Lagos Inter-Area Transport Terminal (Currently in: {area})
+                </h2>
+                <span className="text-[11px] text-amber-300">
+                  {weather === "Heavy Lagos Rain" ? "🌧️ Rain Surge: Bus & Cab fares +50% higher!" : "☀️ Normal Traffic Rates"}
                 </span>
               </div>
-              <p className="text-slate-400">
-                Max 2 shifts/day. Each shift triggers a mandatory physical recovery cooldown before you can work again!
-              </p>
 
+              <div className="grid sm:grid-cols-5 gap-2">
+                {(["Oshodi", "Berger", "Yaba", "Surulere", "Lekki"] as AreaName[]).map((dest) => {
+                  const fares = getTransportCosts(dest);
+                  const isHere = area === dest;
+                  return (
+                    <div
+                      key={dest}
+                      className={`p-3 rounded-xl border ${
+                        isHere ? "bg-emerald-950/40 border-emerald-500" : "bg-slate-950 border-slate-800"
+                      } space-y-2`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-extrabold text-sm text-white">📍 {dest}</span>
+                        {shelterArea === dest && <span className="text-[10px] bg-indigo-600 px-1.5 py-0.5 rounded">🏠 Home</span>}
+                      </div>
+                      {isHere ? (
+                        <div className="py-2 text-center text-emerald-400 font-bold">✓ You Are Here</div>
+                      ) : (
+                        <div className="space-y-1">
+                          <button
+                            disabled={!!timers.commute}
+                            onClick={() => {
+                              if (energy < fares.trekEnergy) return setLogMessage("⚠️ Too weak to trek that distance!");
+                              startCooldown("commute", 60);
+                              setEnergy((e) => Math.max(0, e - fares.trekEnergy));
+                              setHealth((h) => Math.max(15, h - fares.trekHealthLoss));
+                              setWeight((w) => Number(Math.max(50, w - 0.5).toFixed(1)));
+                              setArea(dest);
+                              setEnteredBuilding("None");
+                              setLogMessage(`🚶🏾‍♂️ Trekked from ${area} to ${dest}! (-${fares.trekEnergy}% Energy, -${fares.trekHealthLoss}% Health, 60s timer).`);
+                            }}
+                            className="w-full py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px]"
+                          >
+                            🚶🏾‍♂️ Trek (₦0 • -{fares.trekEnergy}% En)
+                          </button>
+                          <button
+                            disabled={!!timers.commute}
+                            onClick={() => {
+                              if (!spendMoney(fares.busCost)) return;
+                              startCooldown("commute", 45);
+                              setEnergy((e) => Math.max(0, e - 5));
+                              setArea(dest);
+                              setEnteredBuilding("None");
+                              setLogMessage(`🚐 Took Danfo Bus to ${dest} (-${fares.busCost.toLocaleString()} g₦, 45s commute).`);
+                            }}
+                            className="w-full py-1 bg-amber-600/30 border border-amber-600 text-amber-300 rounded text-[10px] font-bold"
+                          >
+                            🚐 Bus ({fares.busCost.toLocaleString()} g₦)
+                          </button>
+                          <button
+                            disabled={!!timers.commute}
+                            onClick={() => {
+                              if (!spendMoney(fares.cabCost)) return;
+                              startCooldown("commute", 25);
+                              setArea(dest);
+                              setEnteredBuilding("None");
+                              setLogMessage(`🚕 Took Executive Cab to ${dest} (-${fares.cabCost.toLocaleString()} g₦).`);
+                            }}
+                            className="w-full py-1 bg-indigo-600 text-white rounded text-[10px] font-bold"
+                          >
+                            🚕 Cab ({fares.cabCost.toLocaleString()} g₦)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* OUTDOOR 2D STREET BUILDINGS IN CURRENT AREA (CLICK TO ENTER!) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h2 className="font-bold text-sm text-amber-400">
+                🏙️ Outdoor Street View in {area} — Click Any Building to Enter Inside
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                {[
+                  { id: "Furniture_Shop", icon: "🛏️", name: "Mattress & Sofa Showroom", sub: "Beds & Chairs" },
+                  { id: "Electronics_Shop", icon: "📺", name: "LG/Samsung TV Plaza", sub: "3 TV Tiers" },
+                  { id: "Gas_Kitchen_Shop", icon: "🔥", name: "Gas, Stove & Raw Food", sub: "Cook at Home" },
+                  { id: "Eatery", icon: "🍗", name: `${area} Bukka & Eatery`, sub: "Hot Meals" },
+                  { id: "Church_Social", icon: "⛪", name: "Church & Social Lounge", sub: "Meet Partners" },
+                  { id: "Office_Building", icon: "🏢", name: `${area} Corporate Towers`, sub: "Work & Colleagues" },
+                ].map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setEnteredBuilding(b.id as any)}
+                    className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
+                      enteredBuilding === b.id
+                        ? "bg-emerald-950/60 border-emerald-400 scale-[1.02]"
+                        : "bg-slate-950 border-slate-800 hover:border-slate-600"
+                    }`}
+                  >
+                    <span className="text-3xl">{b.icon}</span>
+                    <span className="font-extrabold text-xs text-white">{b.name}</span>
+                    <span className="text-[10px] text-slate-400">{b.sub}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* INSIDE THE SELECTED BUILDING */}
+              {enteredBuilding === "Furniture_Shop" && (
+                <div className="p-4 bg-slate-950 border border-amber-500/40 rounded-2xl space-y-3">
+                  <h3 className="font-extrabold text-sm text-amber-400">🛏️ Inside {area} Furniture & Mattress Showroom</h3>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {[
+                      { icon: "🛏️", name: "Mouka Foam Mattress", tier: "Foam_Mattress", cost: 30000, desc: "Raises sleep cap to 85% Energy" },
+                      { icon: "👑", name: "Orthopedic Royal King Bed", tier: "King_Bed", cost: 95000, desc: "Raises sleep cap to 100% + 20 Steeze" },
+                      { icon: "🛋️", name: "L-Shaped Cushion Sofa Set", tier: "Cushion_Sofa", cost: 55000, desc: "Required to host visitors & marry" },
+                    ].map((item, i) => (
+                      <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div className="text-3xl">{item.icon}</div>
+                        <div className="font-bold text-white">{item.name}</div>
+                        <div className="text-[10px] text-slate-400">{item.desc}</div>
+                        <button
+                          onClick={() => {
+                            if (spendMoney(item.cost)) {
+                              if (item.tier === "Cushion_Sofa") setChairTier(item.tier);
+                              else setBedTier(item.tier);
+                              setSteeze((s) => s + 15);
+                              setLogMessage(`🛍️ Purchased ${item.name}! Delivered to your home in ${shelterArea}.`);
+                            }
+                          }}
+                          className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          Buy ({item.cost.toLocaleString()} g₦)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {enteredBuilding === "Electronics_Shop" && (
+                <div className="p-4 bg-slate-950 border border-cyan-500/40 rounded-2xl space-y-3">
+                  <h3 className="font-extrabold text-sm text-cyan-400">📺 Inside {area} Electronics & TV Plaza (Choose TV Type)</h3>
+                  <div className="grid sm:grid-cols-4 gap-3">
+                    {[
+                      { icon: "📦", name: "19-Inch 'Kpalasa' Box TV", cost: 45000, steeze: 5 },
+                      { icon: "🖥️", name: "32-Inch LED Flat TV", cost: 85000, steeze: 15 },
+                      { icon: "📺", name: "55-Inch 4K Smart TV", cost: 175000, steeze: 30 },
+                      { icon: "🎬", name: "85-Inch Curved OLED Cinema", cost: 420000, steeze: 65 },
+                    ].map((tv, i) => (
+                      <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div className="text-3xl">{tv.icon}</div>
+                        <div className="font-bold text-white">{tv.name}</div>
+                        <div className="text-[10px] text-cyan-400">+{tv.steeze} Steeze Points</div>
+                        <button
+                          onClick={() => {
+                            if (spendMoney(tv.cost)) {
+                              setTvTier(tv.name);
+                              setSteeze((s) => s + tv.steeze);
+                              setLogMessage(`📺 Bought ${tv.name} and mounted it in your ${shelterArea} home!`);
+                            }
+                          }}
+                          className="w-full py-1.5 bg-cyan-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          Buy ({tv.cost.toLocaleString()} g₦)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {enteredBuilding === "Gas_Kitchen_Shop" && (
+                <div className="p-4 bg-slate-950 border border-orange-500/40 rounded-2xl space-y-3">
+                  <h3 className="font-extrabold text-sm text-orange-400">🔥 Inside {area} Cooking Gas, Stove & Raw Foodstuff Market</h3>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                      <div className="text-3xl">🔥</div>
+                      <div className="font-bold">Tabletop Gas Burner & Cylinder</div>
+                      <div className="text-[10px] text-slate-400">Unlocks cooking inside your home (comes with 50% gas).</div>
+                      <button
+                        disabled={hasCookingStove}
+                        onClick={() => {
+                          if (spendMoney(35000)) {
+                            setHasCookingStove(true);
+                            setGasLevel(50);
+                            setLogMessage("🔥 Bought Gas Cylinder & Burner! You can now cook meals at home.");
+                          }
+                        }}
+                        className="w-full py-1.5 bg-orange-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
+                      >
+                        {hasCookingStove ? "✓ Owned" : "Buy Stove (35,000 g₦)"}
+                      </button>
+                    </div>
+
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                      <div className="text-3xl">⛽</div>
+                      <div className="font-bold">Refill 12.5kg Cooking Gas</div>
+                      <div className="text-[10px] text-slate-400">Fills your kitchen gas cylinder to 100%.</div>
+                      <button
+                        onClick={() => {
+                          if (!hasCookingStove) return setLogMessage("❌ Buy a Gas Stove & Cylinder first!");
+                          if (spendMoney(12000)) {
+                            setGasLevel(100);
+                            setLogMessage("⛽ Cooking gas refilled to 100%!");
+                          }
+                        }}
+                        className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
+                      >
+                        Refill Gas (12,000 g₦)
+                      </button>
+                    </div>
+
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                      <div className="text-3xl">🌾</div>
+                      <div className="font-bold">Raw Rice, Beans & Chicken Pack (5 Meals)</div>
+                      <div className="text-[10px] text-slate-400">Only 2,000 g₦ per home-cooked meal!</div>
+                      <button
+                        onClick={() => {
+                          if (spendMoney(10000)) {
+                            setRawFoodServings((r) => r + 5);
+                            setLogMessage("🌾 Bought 5 servings of raw foodstuffs! Cook them inside My Home.");
+                          }
+                        }}
+                        className="w-full py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                      >
+                        Buy 5 Raw Meals (10,000 g₦)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {enteredBuilding === "Eatery" && (
+                <div className="p-4 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-3">
+                  <h3 className="font-extrabold text-sm text-emerald-400">🍗 Inside {area} Bukka & Fast-Food Restaurant (60s Eating Timer)</h3>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {[
+                      { name: "Roadside Bread & Beans", cost: 2000, en: 20, wt: 0.7, hp: 0 },
+                      { name: "Amala, Gbegiri & Assorted Meat", cost: 4500, en: 35, wt: 0.3, hp: 8 },
+                      { name: "Grilled Catfish, Plantain & Salad", cost: 8500, en: 50, wt: -0.3, hp: 15 },
+                    ].map((m, i) => (
+                      <button
+                        key={i}
+                        disabled={!!timers.eat_cd}
+                        onClick={() => {
+                          if (spendMoney(m.cost)) {
+                            startCooldown("eat_cd", 60);
+                            setHunger((h) => Math.min(100, h + 40));
+                            setEnergy((e) => Math.min(100, e + m.en));
+                            setWeight((w) => Number((w + m.wt).toFixed(1)));
+                            setHealth((hp) => Math.min(100, hp + m.hp));
+                            setLogMessage(`🍽️ Ate ${m.name} at ${area} Eatery! (60s meal timer active)`);
+                          }
+                        }}
+                        className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-left disabled:opacity-40"
+                      >
+                        <div className="font-bold text-white">{m.name}</div>
+                        <div className="text-emerald-400 font-bold mt-1">{m.cost.toLocaleString()} g₦ • +{m.en}% Energy</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ORGANIC SOCIAL INTERACTION & COURTSHIP INSIDE CHURCH / LOUNGE / OFFICE */}
+              {(enteredBuilding === "Church_Social" || enteredBuilding === "Office_Building") && (
+                <div className="p-4 bg-slate-950 border border-rose-500/40 rounded-2xl space-y-3">
+                  <h3 className="font-extrabold text-sm text-rose-400">
+                    💬 People Currently Inside {enteredBuilding === "Church_Social" ? `${area} Church & Social Lounge` : `${area} Corporate Towers`}
+                  </h3>
+                  <p className="text-slate-400 text-[11px]">
+                    Chat with people in this building! Once someone is interested, you begin courting at <strong>10% Bond</strong> and must complete <strong>10 Dates (+10% Bond per date)</strong> to unlock marriage.
+                  </p>
+
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {(gender === "male"
+                      ? [
+                          { name: "Chidinma (Accountant)", loc: "Lekki", vibe: "Loves intellectual & ambitious men" },
+                          { name: "Zainab (Architect)", loc: "Yaba", vibe: "Values neat dressing & stability" },
+                          { name: "Tolu (Digital Strategist)", loc: "Oshodi", vibe: "Friendly & hardworking" },
+                        ]
+                      : [
+                          { name: "Adewale (Bank Officer)", loc: "Lekki", vibe: "Respectful & career-driven" },
+                          { name: "Chinedu (Estate Developer)", loc: "Yaba", vibe: "Ambitious builder" },
+                          { name: "Ibrahim (Tech Lead)", loc: "Berger", vibe: "Calm & supportive" },
+                        ]
+                    ).map((person, i) => (
+                      <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div className="font-bold text-white">{person.name}</div>
+                        <div className="text-[10px] text-slate-400">{person.vibe}</div>
+                        <button
+                          onClick={() => {
+                            if (energy < 15) return setLogMessage("⚠️ Too tired to hold a conversation!");
+                            setEnergy((e) => Math.max(0, e - 10));
+                            setChatHistory((prev) => [
+                              `You chatted with ${person.name} at ${area}: "Hey! How is work going?" — ${person.name} smiled and exchanged numbers with you!`,
+                              ...prev,
+                            ]);
+                            if (maritalStatus === "Single") {
+                              setPartnerName(person.name);
+                              setMaritalStatus("Courting");
+                              setRelationshipBond(10); // Starts at 10% as requested!
+                              setLogMessage(`❤️ ${person.name} liked your conversation! You are now Courting at 10% Bond. Schedule 9 more dates to hit 100%!`);
+                            } else {
+                              setLogMessage(`💬 Had a great conversation with ${person.name}!`);
+                            }
+                          }}
+                          className="w-full py-1.5 bg-rose-600 text-white font-bold rounded-lg"
+                        >
+                          💬 Chat & Converse (-10% Energy)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ACTIVE COUPLE DATING & CONVERSATION PANEL */}
+                  {maritalStatus === "Courting" && (
+                    <div className="p-3 bg-rose-950/30 border border-rose-700 rounded-xl space-y-2 mt-3">
+                      <div className="flex justify-between font-bold">
+                        <span>💑 Courting: {partnerName}</span>
+                        <span className="text-emerald-400">Couple Bond: {relationshipBond}% / 100% (+10% per Date)</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          disabled={!!timers.date_cd}
+                          onClick={() => {
+                            if (health < 60 || energy < 30) {
+                              return setLogMessage("❌ You must have at least 60% Health and 30% Energy to go on a date!");
+                            }
+                            if (!spendMoney(25000)) return;
+                            startCooldown("date_cd", 60);
+                            setEnergy((e) => Math.max(0, e - 25));
+                            const nextBond = Math.min(100, relationshipBond + 10);
+                            setRelationshipBond(nextBond);
+                            setLogMessage(`🍷 Took ${partnerName} out on a dinner date (-25,000 g₦, -25% Energy)! Couple Bond is now ${nextBond}%!`);
+                          }}
+                          className="px-4 py-2 bg-rose-500 text-white font-extrabold rounded-lg disabled:opacity-40"
+                        >
+                          {timers.date_cd
+                            ? `⏳ On Date (${formatSecs(timers.date_cd)})`
+                            : `🍷 Take ${partnerName} on Date (25,000 g₦ • +10% Bond • 60s)`}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (relationshipBond < 100) return setLogMessage(`❌ You need 100% Bond to marry! Currently at ${relationshipBond}%.`);
+                            if (wallColor === "Unplastered" || bedTier === "Bare_Floor" || chairTier === "None") {
+                              return setLogMessage("❌ Furnish & paint your home before marriage!");
+                            }
+                            if (spendMoney(150000)) {
+                              setMaritalStatus("Married");
+                              setCertificatesList((c) => [...c, `Marriage Certificate (${partnerName})`]);
+                              setSteeze((s) => s + 50);
+                              setLogMessage(`💍 Married ${partnerName}! Added Marriage Certificate to your Profile!`);
+                            }
+                          }}
+                          className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          💍 Propose & Marry at Registry (Req: 100% Bond • 150k g₦)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {chatHistory.length > 0 && (
+                    <div className="p-2.5 bg-slate-900 rounded-xl space-y-1 text-[11px] text-slate-300">
+                      {chatHistory.slice(0, 3).map((c, i) => <div key={i}>• {c}</div>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 3: 💼 EXPANDED JOBS (LOCATION-TIED HUSTLES + 7 CORPORATES + GIGS)
+           ===================================================================== */}
+        {activeTab === "jobs" && (
+          <div className="grid md:grid-cols-3 gap-4 text-xs">
+            {/* LOCATION-TIED STREET HUSTLES (60s-90s TIMERS) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <div className="flex justify-between items-center">
+                <h2 className="font-bold text-sm text-amber-400">🧱 Location-Based Street Jobs</h2>
+                <span className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded-full font-bold">{hustlesDoneToday}/3 Today</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                You must commute to the exact Area where the job is happening! Minimum 60s–90s cooldown per job.
+              </p>
               {[
-                { id: "brick", name: "🧱 Bricklayer (Lekki Site)", pay: 8000, cd: 45 },
-                { id: "cater", name: "🍽️ Owambe Catering & Plates", pay: 6500, cd: 40 },
+                { id: "h1", name: "🧱 Duplex Bricklaying Site", loc: "Lekki" as AreaName, pay: 12000, cd: 90 },
+                { id: "h2", name: "🍽️ Restaurant Kitchen & Plate Washing", loc: "Yaba" as AreaName, pay: 7500, cd: 60 },
+                { id: "h3", name: "📦 Oshodi Market Load Carrier", loc: "Oshodi" as AreaName, pay: 6000, cd: 60 },
+                { id: "h4", name: "🧹 Berger Warehouse Offloading", loc: "Berger" as AreaName, pay: 8500, cd: 75 },
+                { id: "h5", name: "🎉 Surulere Owambe Event Server", loc: "Surulere" as AreaName, pay: 9000, cd: 75 },
               ].map((h) => {
-                const cdLeft = timers[`hustle_${h.id}`];
+                const cd = timers[h.id];
                 return (
-                  <div key={h.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                  <div key={h.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
                     <div className="flex justify-between font-bold">
                       <span>{h.name}</span>
                       <span className="text-emerald-400">+{h.pay.toLocaleString()} g₦</span>
                     </div>
+                    <div className="text-[10px] text-slate-400">📍 Location: {h.loc} • Cooldown: {h.cd}s</div>
                     <button
-                      disabled={!!cdLeft || hustlesDoneToday >= 2}
+                      disabled={!!cd || hustlesDoneToday >= 3}
                       onClick={() => {
+                        if (area !== h.loc) return setLogMessage(`🚌 You are in ${area}! Take a Bus, Cab, or Trek to ${h.loc} in the Outdoor City tab to do this job!`);
                         if (energy < 30) return setLogMessage("⚠️ Need 30% Energy!");
-                        startCooldown(`hustle_${h.id}`, h.cd);
+                        startCooldown(h.id, h.cd);
                         setHustlesDoneToday((p) => p + 1);
-                        setEnergy((p) => Math.max(0, p - 30));
-                        const actualPay = health < 60 ? Math.floor(h.pay * 0.65) : h.pay;
-                        setEarnedBalance((p) => p + actualPay);
-                        setLogMessage(
-                          health < 60
-                            ? `⚠️ Low health! Broke blocks/plates. Paid ${actualPay.toLocaleString()} g₦. Cooldown: ${h.cd}s.`
-                            : `✅ Shift complete! +${actualPay.toLocaleString()} g₦. Cooldown locked for ${h.cd}s.`
-                        );
+                        setEnergy((e) => Math.max(0, e - 30));
+                        const actual = health < 60 ? Math.floor(h.pay * 0.65) : h.pay;
+                        setEarnedBalance((p) => p + actual);
+                        setLogMessage(`✅ Completed ${h.name} in ${h.loc}! Paid +${actual.toLocaleString()} g₦.`);
                       }}
-                      className="w-full py-2 bg-amber-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
+                      className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
                     >
-                      {cdLeft ? `⏳ Cooldown: ${formatSecs(cdLeft)}` : hustlesDoneToday >= 2 ? "🛑 Daily Limit Reached (2/2)" : "Start Shift (-30% Energy)"}
+                      {cd ? `⏳ Cooldown (${formatSecs(cd)})` : area !== h.loc ? `🚌 Commute to ${h.loc} First` : "Work Shift"}
                     </button>
                   </div>
                 );
               })}
             </div>
 
-            {/* CORPORATE JOBS (CHOOSE EMPLOYER + DAILY OFFICE CLOCK-IN + 3-DAY PAYROLL) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-cyan-400">🏢 Corporate Employment</h2>
+            {/* EXPANDED 7 CORPORATE EMPLOYERS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-cyan-400">🏢 Corporate Employment (7 Companies)</h2>
               {employedJob ? (
                 <div className="p-3 bg-cyan-950/30 border border-cyan-700 rounded-xl space-y-2.5">
                   <div className="font-extrabold text-sm text-white">{employedJob.title}</div>
-                  <div className="text-cyan-300">Company: {employedJob.company} (📍 {employedJob.area})</div>
-                  <div className="text-emerald-400 font-bold">Salary: {employedJob.payPer3Days.toLocaleString()} g₦ every 3 Days</div>
-                  <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                    Days Worked This Cycle: <strong>{daysWorkedThisCycle} / 3 Days</strong>
-                  </div>
+                  <div className="text-cyan-300">Employer: {employedJob.company} (📍 {employedJob.area})</div>
+                  <div className="text-emerald-400 font-bold">Pay: {employedJob.payPer3Days.toLocaleString()} g₦ / 3 Days</div>
+                  <div className="bg-slate-950 p-2 rounded-lg">Attendance: <strong>{daysWorkedThisCycle}/3 Days</strong></div>
                   <button
-                    disabled={workedOfficeToday || !!timers.office_shift}
+                    disabled={workedOfficeToday || !!timers.office_cd}
                     onClick={() => {
-                      if (area !== employedJob.area) return setLogMessage(`🚇 Commute to ${employedJob.area} first!`);
-                      if (energy < 30) return setLogMessage("⚠️ Need 30% Energy!");
-                      startCooldown("office_shift", 15);
+                      if (area !== employedJob.area) return setLogMessage(`🚌 Commute to ${employedJob.area} first!`);
+                      startCooldown("office_cd", 60);
                       setWorkedOfficeToday(true);
-                      setEnergy((p) => Math.max(0, p - 30));
+                      setEnergy((e) => Math.max(0, e - 30));
                       const nextD = daysWorkedThisCycle + 1;
                       if (nextD >= 3) {
                         setDaysWorkedThisCycle(0);
                         setEarnedBalance((p) => p + employedJob.payPer3Days);
-                        setLogMessage(`💰 3-DAY PAYROLL RELEASED! +${employedJob.payPer3Days.toLocaleString()} g₦ paid!`);
+                        setLogMessage(`💰 PAYDAY! +${employedJob.payPer3Days.toLocaleString()} g₦ paid by ${employedJob.company}!`);
                       } else {
                         setDaysWorkedThisCycle(nextD);
-                        setLogMessage(`🏢 Worked day ${nextD}/3 at ${employedJob.company}!`);
+                        setLogMessage(`🏢 Office shift ${nextD}/3 done at ${employedJob.company}!`);
                       }
                     }}
                     className="w-full py-2.5 bg-cyan-500 text-slate-950 font-extrabold rounded-xl disabled:opacity-40"
                   >
-                    {timers.office_shift
-                      ? `⏳ Working in Office (${formatSecs(timers.office_shift)})`
-                      : workedOfficeToday
-                      ? "✓ Done for Today (Wait for Tomorrow)"
-                      : `🏢 Clock In at ${employedJob.area} Office`}
+                    {timers.office_cd ? `⏳ Working (${formatSecs(timers.office_cd)})` : workedOfficeToday ? "✓ Worked Today" : `Clock In at ${employedJob.area} Office (60s)`}
                   </button>
-                  <button onClick={() => setEmployedJob(null)} className="w-full py-1 text-slate-400 underline">
-                    Resign from Job
-                  </button>
+                  <button onClick={() => setEmployedJob(null)} className="w-full text-slate-400 underline">Switch Job</button>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {[
-                    { title: "IT Technician", company: "Yaba Tech Hub", area: "Yaba" as const, reqEdu: "Polytechnic ND", reqCv: 25, pay: 50000 },
-                    { title: "Operations Officer", company: "Berger Logistics", area: "Berger" as const, reqEdu: "Polytechnic HND", reqCv: 60, pay: 95000 },
-                    { title: "Investment Banker", company: "ZenithMarina PLC", area: "Lekki" as const, reqEdu: "University B.Sc", reqCv: 85, pay: 185000 },
-                    { title: "Expat Oil Director", company: "TotalEnergies VI", area: "Lekki" as const, reqEdu: "Masters Abroad (M.Sc)", reqCv: 95, pay: 420000 },
+                    { title: "Front Desk Officer", company: "Oshodi Microfinance", area: "Oshodi" as AreaName, reqEdu: "Polytechnic ND", reqCv: 25, pay: 55000 },
+                    { title: "IT Support Officer", company: "Yaba CcHub Tech", area: "Yaba" as AreaName, reqEdu: "Polytechnic ND", reqCv: 50, pay: 75000 },
+                    { title: "Fleet Supervisor", company: "Berger Julius Construction", area: "Berger" as AreaName, reqEdu: "Polytechnic HND", reqCv: 65, pay: 115000 },
+                    { title: "Media Account Manager", company: "Surulere AdWorks PLC", area: "Surulere" as AreaName, reqEdu: "Polytechnic HND", reqCv: 75, pay: 140000 },
+                    { title: "Commercial Bank Executive", company: "ZenithMarina PLC", area: "Lekki" as AreaName, reqEdu: "University B.Sc", reqCv: 85, pay: 210000 },
+                    { title: "Senior Software Architect", company: "PaystackLekki HQ", area: "Lekki" as AreaName, reqEdu: "University B.Sc", reqCv: 90, pay: 280000 },
+                    { title: "Multinational Oil Director", company: "Chevron & Shell VI", area: "Lekki" as AreaName, reqEdu: "Masters Abroad (M.Sc)", reqCv: 95, pay: 520000 },
                   ].map((j, i) => (
                     <div key={i} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
                       <div>
                         <div className="font-bold text-white">{j.title} — {j.company}</div>
                         <div className="text-[10px] text-slate-400">
-                          📍 {j.area} • Req: {j.reqEdu} & CV {j.reqCv}% • {j.pay.toLocaleString()} g₦ / 3d
+                          📍 {j.area} • Req: {j.reqEdu} & CV {j.reqCv}% • {j.pay.toLocaleString()} g₦/3d
                         </div>
                       </div>
                       <button
                         onClick={() => {
-                          if (education !== j.reqEdu && education !== "Masters Abroad (M.Sc)") {
-                            return setLogMessage(`❌ You need ${j.reqEdu} to apply here! (Current: ${education})`);
+                          if (!certificatesList.includes(j.reqEdu) && !certificatesList.includes("Masters Abroad (M.Sc)")) {
+                            return setLogMessage(`❌ Requires ${j.reqEdu} certificate on your Profile!`);
                           }
                           if (cvScore < j.reqCv) return setLogMessage(`❌ Requires CV Score ${j.reqCv}%+!`);
-                          if (j.reqCv >= 85 && !hasCorporateSuit) return setLogMessage("❌ Buy Corporate Suit first!");
                           setEmployedJob({ title: j.title, company: j.company, area: j.area, payPer3Days: j.pay });
-                          setLogMessage(`🎉 Hired at ${j.company}! Commute to ${j.area} daily.`);
+                          setLogMessage(`🎉 Hired at ${j.company} (${j.area})!`);
                         }}
-                        className="px-3 py-1.5 bg-cyan-600 text-white font-bold rounded-lg"
+                        className="px-3 py-1 bg-cyan-600 text-white font-bold rounded-lg"
                       >
                         Apply
                       </button>
@@ -630,16 +1011,13 @@ export default function LagosEmpireFullGame() {
               )}
             </div>
 
-            {/* SOCIAL GIGS WITH 3-TO-5 HOUR BATCH COOLDOWN TIMER */}
+            {/* SOCIAL GIGS (2-MINUTE TO 5-MINUTE BATCH TIMERS) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
               <h2 className="font-bold text-sm text-emerald-400">📱 Social Gigs (Timed Batches)</h2>
-              <p className="text-[11px] text-slate-400">
-                Once claimed, each campaign locks for a 3–4 Hour refresh countdown until a new advertiser batch drops!
-              </p>
               {[
-                { id: "gig1", title: "Follow JPC Official on X", reward: 2500, cooldownSec: 180 },
-                { id: "gig2", title: "Follow Lagos Dev on LinkedIn", reward: 4000, cooldownSec: 240 },
-                { id: "gig3", title: "Test Partner Web App & Review", reward: 12000, cooldownSec: 300 },
+                { id: "sg1", title: "Follow JPC Party on X", reward: 2500, cd: 180 },
+                { id: "sg2", title: "Follow Lagos Dev on LinkedIn", reward: 4000, cd: 240 },
+                { id: "sg3", title: "Test Partner Web App & Review", reward: 12000, cd: 300 },
               ].map((g) => {
                 const cd = timers[g.id];
                 return (
@@ -649,24 +1027,24 @@ export default function LagosEmpireFullGame() {
                       <span className="text-emerald-400">+{g.reward.toLocaleString()} g₦</span>
                     </div>
                     {cd ? (
-                      <div className="py-1.5 px-2 bg-amber-950/60 border border-amber-700 text-amber-300 rounded-lg font-bold text-center">
-                        ⏳ Next Advertiser Batch In: {formatSecs(cd)}
+                      <div className="py-1.5 bg-amber-950/60 border border-amber-700 text-amber-300 rounded-lg font-bold text-center">
+                        ⏳ Next Batch In: {formatSecs(cd)}
                       </div>
                     ) : (
                       <div className="flex gap-1.5">
                         <input
                           type="text"
-                          placeholder="Your @username proof..."
+                          placeholder="@handle proof..."
                           value={gigProofInputs[g.id] || ""}
                           onChange={(e) => setGigProofInputs((p) => ({ ...p, [g.id]: e.target.value }))}
                           className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white"
                         />
                         <button
                           onClick={() => {
-                            if (!gigProofInputs[g.id]?.trim()) return setLogMessage("⚠️ Enter your @handle proof first!");
-                            startCooldown(g.id, g.cooldownSec);
+                            if (!gigProofInputs[g.id]?.trim()) return setLogMessage("⚠️ Enter your @handle proof!");
+                            startCooldown(g.id, g.cd);
                             setEarnedBalance((p) => p + g.reward);
-                            setLogMessage(`✅ Gig Verified! +${g.reward.toLocaleString()} g₦ paid. Locked for next batch (${formatSecs(g.cooldownSec)}).`);
+                            setLogMessage(`✅ Verified! +${g.reward.toLocaleString()} g₦ paid.`);
                           }}
                           className="px-3 py-1 bg-emerald-600 text-white font-bold rounded-lg"
                         >
@@ -682,192 +1060,192 @@ export default function LagosEmpireFullGame() {
         )}
 
         {/* =====================================================================
-            TAB 3: ND -> HND -> B.Sc -> STUDY ABROAD (MULTI-LECTURE & DEADLINES!)
+            TAB 4: 🎓 SCHOOL, SCHOLARSHIPS, ABROAD VISA/ADMISSION & EXPENSIVE BLUEPRINTS
            ===================================================================== */}
         {activeTab === "school" && (
           <div className="grid md:grid-cols-3 gap-4 text-xs">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-amber-400">🎓 Multi-Lecture Academic Pipeline</h2>
-              <p className="text-[11px] text-slate-400">
-                Degrees are NOT instant! Enroll first, then attend every required lecture class before your semester deadline expires.
-              </p>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-amber-400">🎓 Degrees, Scholarships & Study Abroad</h2>
 
-              {/* ACTIVE ENROLLED DEGREE TRACKER */}
+              {/* SCHOLARSHIP BOARD */}
+              <div className="p-2.5 bg-emerald-950/30 border border-emerald-700 rounded-xl flex justify-between items-center">
+                <div>
+                  <div className="font-bold text-emerald-300">🏆 Corporate Tuition Scholarship</div>
+                  <div className="text-[10px] text-slate-400">Req: 30+ Citizen Points & 80%+ Health (Slashes Tuition 50%!)</div>
+                </div>
+                <button
+                  disabled={hasScholarship}
+                  onClick={() => {
+                    if (citizenPoints < 30 || health < 80) return setLogMessage("❌ Scholarship requires 30+ Citizen Points & 80%+ Health!");
+                    setHasScholarship(true);
+                    setLogMessage("🎉 Awarded a 50% Corporate Tuition Scholarship!");
+                  }}
+                  className="px-2.5 py-1 bg-emerald-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
+                >
+                  {hasScholarship ? "✓ Active (-50%)" : "Apply"}
+                </button>
+              </div>
+
               {enrolledProgram ? (
-                <div className="p-3 bg-indigo-950/50 border border-indigo-600 rounded-xl space-y-2.5">
-                  <div className="font-extrabold text-sm text-white">📚 Studying: {enrolledProgram.name}</div>
-                  <div className="text-amber-300 font-bold">
-                    Classes Attended: {enrolledProgram.completedClasses} / {enrolledProgram.totalClasses} Lectures
-                  </div>
-                  <div className="text-[11px] text-rose-300">
-                    ⏳ Must complete within: {enrolledProgram.deadlineDaysLeft} In-Game Days
-                  </div>
+                <div className="p-3 bg-indigo-950/50 border border-indigo-500 rounded-xl space-y-2">
+                  <div className="font-extrabold text-white">📚 Program: {enrolledProgram.name}</div>
+                  <div className="text-amber-300 font-bold">Progress: {enrolledProgram.completedClasses} / {enrolledProgram.totalClasses} Lectures</div>
                   <button
                     disabled={!!timers.lecture_cd}
                     onClick={() => {
-                      if (energy < 20) return setLogMessage("⚠️ Too tired for class! Eat or sleep.");
-                      startCooldown("lecture_cd", 15);
-                      setEnergy((p) => Math.max(0, p - 20));
-                      const nextCount = enrolledProgram.completedClasses + 1;
-                      if (nextCount >= enrolledProgram.totalClasses) {
+                      if (energy < 25) return setLogMessage("⚠️ Need 25% Energy for lecture!");
+                      startCooldown("lecture_cd", 60); // 1-Minute Lecture Timer!
+                      setEnergy((e) => Math.max(0, e - 25));
+                      const nextC = enrolledProgram.completedClasses + 1;
+                      if (nextC >= enrolledProgram.totalClasses) {
                         setEducation(enrolledProgram.name);
+                        setCertificatesList((c) => [...c, enrolledProgram.name]);
                         setEnrolledProgram(null);
-                        setSteeze((p) => p + 30);
-                        setLogMessage(`🎓 GRADUATED! You completed all ${enrolledProgram.totalClasses} lectures and earned your ${enrolledProgram.name}!`);
+                        setSteeze((s) => s + 35);
+                        setLogMessage(`🎓 GRADUATED! ${enrolledProgram.name} added to your Profile Achievements!`);
                       } else {
-                        setEnrolledProgram({ ...enrolledProgram, completedClasses: nextCount });
-                        setLogMessage(`📖 Lecture ${nextCount}/${enrolledProgram.totalClasses} completed! Next class unlocks after cooldown.`);
+                        setEnrolledProgram({ ...enrolledProgram, completedClasses: nextC });
+                        setLogMessage(`📖 Completed Lecture ${nextC}/${enrolledProgram.totalClasses} (60s cooldown).`);
                       }
                     }}
                     className="w-full py-2.5 bg-emerald-500 text-slate-950 font-extrabold rounded-xl disabled:opacity-40"
                   >
-                    {timers.lecture_cd
-                      ? `⏳ In Lecture Hall (${formatSecs(timers.lecture_cd)})`
-                      : `Attend Lecture #${enrolledProgram.completedClasses + 1} (-20% Energy)`}
+                    {timers.lecture_cd ? `⏳ In Lecture (${formatSecs(timers.lecture_cd)})` : `Attend Lecture #${enrolledProgram.completedClasses + 1} (60s)`}
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {/* 1. POLYTECHNIC ND */}
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex justify-between font-bold">
-                      <span>1. Polytechnic ND (2 Wks • 6 Lectures)</span>
-                      <span className="text-amber-400">180,000 g₦</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (spendMoney(180000)) {
-                          setEnrolledProgram({ id: "ND", name: "Polytechnic ND", totalClasses: 6, completedClasses: 0, deadlineDaysLeft: 14 });
-                          setLogMessage("🎓 Enrolled in Polytechnic ND! Attend 6 lectures within 14 days.");
-                        }
-                      }}
-                      className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
-                    >
-                      Enroll in ND (6 Lectures Required)
-                    </button>
-                  </div>
+                  {[
+                    { name: "Polytechnic ND", cost: 220000, classes: 6, req: null },
+                    { name: "Polytechnic HND", cost: 350000, classes: 6, req: "Polytechnic ND" },
+                    { name: "University B.Sc", cost: 680000, classes: 10, req: null },
+                  ].map((d, i) => {
+                    const finalCost = hasScholarship ? d.cost / 2 : d.cost;
+                    return (
+                      <div key={i} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                        <div>
+                          <div className="font-bold text-white">{d.name} ({d.classes} Classes)</div>
+                          <div className="text-[10px] text-amber-400">{finalCost.toLocaleString()} g₦ {hasScholarship && "(50% Scholarship)"}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (d.req && !certificatesList.includes(d.req)) return setLogMessage(`❌ Requires ${d.req} first!`);
+                            if (spendMoney(finalCost)) {
+                              setEnrolledProgram({ name: d.name, totalClasses: d.classes, completedClasses: 0 });
+                              setLogMessage(`🎓 Enrolled in ${d.name}!`);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
+                        >
+                          Enroll
+                        </button>
+                      </div>
+                    );
+                  })}
 
-                  {/* 2. POLYTECHNIC HND */}
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex justify-between font-bold">
-                      <span>2. Polytechnic HND (2 Wks • 6 Lectures)</span>
-                      <span className="text-amber-400">240,000 g₦</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (education !== "Polytechnic ND") return setLogMessage("❌ You must complete Polytechnic ND before enrolling in HND!");
-                        if (spendMoney(240000)) {
-                          setEnrolledProgram({ id: "HND", name: "Polytechnic HND", totalClasses: 6, completedClasses: 0, deadlineDaysLeft: 14 });
-                          setLogMessage("🎓 Enrolled in Polytechnic HND!");
-                        }
-                      }}
-                      className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
-                    >
-                      Enroll in HND (Requires ND First)
-                    </button>
-                  </div>
-
-                  {/* 3. UNIVERSITY B.Sc */}
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex justify-between font-bold">
-                      <span>3. University B.Sc (4 Wks • 10 Lectures)</span>
-                      <span className="text-amber-400">450,000 g₦</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (spendMoney(450000)) {
-                          setEnrolledProgram({ id: "BSC", name: "University B.Sc", totalClasses: 10, completedClasses: 0, deadlineDaysLeft: 28 });
-                          setLogMessage("🎓 Enrolled in University B.Sc! Complete 10 lectures within 28 days.");
-                        }
-                      }}
-                      className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
-                    >
-                      Enroll in University B.Sc (10 Lectures)
-                    </button>
-                  </div>
-
-                  {/* 4. STUDY ABROAD M.Sc (Requires Student Visa Countdown!) */}
-                  <div className="p-2.5 bg-amber-950/30 border border-amber-700 rounded-xl space-y-1.5">
-                    <div className="flex justify-between font-bold text-amber-300">
-                      <span>✈️ 4. Study Abroad M.Sc (UK/Canada)</span>
-                      <span>1,200,000 g₦</span>
-                    </div>
-                    {hasAbroadVisa === "None" && (
+                  {/* STUDY ABROAD PIPELINE (VISA 250K -> APPLY ADMISSION -> 30M DEADLINE -> PAY 1.8M) */}
+                  <div className="p-3 bg-amber-950/30 border border-amber-700 rounded-xl space-y-2">
+                    <div className="font-bold text-amber-300">✈️ Study Abroad M.Sc (Visa: 250k • Tuition: 1.8M g₦)</div>
+                    {abroadStatus === "None" && (
                       <button
                         onClick={() => {
-                          if (education !== "University B.Sc" && education !== "Polytechnic HND") {
-                            return setLogMessage("❌ Embassy requires a B.Sc or HND before applying for a Study Abroad Visa!");
+                          if (!certificatesList.includes("University B.Sc") && !certificatesList.includes("Polytechnic HND")) {
+                            return setLogMessage("❌ Requires B.Sc or HND first!");
                           }
-                          if (spendMoney(150000)) {
-                            setHasAbroadVisa("Processing");
-                            startCooldown("visa_wait", 25);
-                            setLogMessage("🛂 Student Visa submitted to Embassy! Processing takes 25s...");
+                          if (spendMoney(250000)) {
+                            startCooldown("visa_cd", 90);
                             setTimeout(() => {
-                              setHasAbroadVisa("Approved");
-                              setLogMessage("✈️ EMBASSY APPROVED YOUR STUDENT VISA! You can now enroll in Masters Abroad.");
-                            }, 25000);
+                              setAbroadStatus("Visa_Granted");
+                              setLogMessage("🛂 Visa Granted! Now apply for University Admission.");
+                            }, 90000);
                           }
                         }}
                         className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
                       >
-                        Step 1: Apply for Student Visa (150k g₦)
+                        {timers.visa_cd ? `⏳ Embassy Visa Wait (${formatSecs(timers.visa_cd)})` : "Step 1: Pay Visa Fee (250,000 g₦ • 90s)"}
                       </button>
                     )}
-                    {hasAbroadVisa === "Processing" && (
-                      <div className="text-center py-1 text-amber-400 font-bold">
-                        ⏳ Embassy Visa Processing: {formatSecs(timers.visa_wait)}
-                      </div>
-                    )}
-                    {hasAbroadVisa === "Approved" && (
+                    {abroadStatus === "Visa_Granted" && (
                       <button
                         onClick={() => {
-                          if (spendMoney(1200000)) {
-                            setEnrolledProgram({ id: "MSC", name: "Masters Abroad (M.Sc)", totalClasses: 8, completedClasses: 0, deadlineDaysLeft: 21 });
-                            setLogMessage("✈️ Flew abroad & enrolled in M.Sc! Complete 8 international seminars.");
+                          if (spendMoney(50000)) {
+                            setAbroadStatus("Admission_Pending");
+                            startCooldown("adm_wait", 90);
+                            setTimeout(() => {
+                              setAbroadStatus("Admitted_30m_Window");
+                              startCooldown("adm_deadline", 1800); // 30-Minute Requirement Window!
+                              setLogMessage("🎓 Abroad Admission Offer Received! Meet tuition & health requirements within 30 minutes or offer voids!");
+                            }, 90000);
                           }
                         }}
-                        className="w-full py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                        className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
                       >
-                        Step 2: Fly Abroad & Start M.Sc (8 Classes)
+                        Step 2: Submit Abroad Admission (50k g₦ • 90s Wait)
                       </button>
+                    )}
+                    {abroadStatus === "Admission_Pending" && (
+                      <div className="text-amber-300 font-bold">⏳ Reviewing Admission: {formatSecs(timers.adm_wait)}</div>
+                    )}
+                    {abroadStatus === "Admitted_30m_Window" && (
+                      <div className="space-y-1.5">
+                        <div className="text-rose-400 font-bold">⏳ Offer Voids In: {formatSecs(timers.adm_deadline)} (Req: 1.8M g₦ & Health 75%+)</div>
+                        <button
+                          onClick={() => {
+                            if (!timers.adm_deadline) {
+                              setAbroadStatus("None");
+                              return setLogMessage("❌ Admission offer expired!");
+                            }
+                            if (health < 75) return setLogMessage("❌ Medical check failed! Health must be 75%+.");
+                            if (spendMoney(1800000)) {
+                              setEnrolledProgram({ name: "Masters Abroad (M.Sc)", totalClasses: 8, completedClasses: 0 });
+                              setAbroadStatus("None");
+                              setLogMessage("✈️ Enrolled in Masters Abroad!");
+                            }
+                          }}
+                          className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          Step 3: Pay 1,800,000 g₦ Tuition & Start M.Sc
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* 5 BUSINESS BLUEPRINTS WITH STUDY TIMERS */}
+            {/* HIGHER-PRICED BUSINESS COURSE BLUEPRINTS (90s STUDY TIMERS) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-              <h2 className="font-bold text-sm text-emerald-400">📘 24h Business Course Blueprints</h2>
+              <h2 className="font-bold text-sm text-emerald-400">📘 Professional Business Blueprints</h2>
+              <p className="text-[11px] text-slate-400">
+                High-value certifications required to build money-making commercial enterprises (90s study timer).
+              </p>
               {[
-                { id: "Eatery", name: "🍲 Eatery & Jollof Culinary Blueprint", cost: 50000 },
-                { id: "Farming", name: "🌾 Commercial Farming Blueprint", cost: 65000 },
-                { id: "Architecture", name: "📐 Architectural & Construction Blueprint", cost: 120000 },
-                { id: "Digital_Agency", name: "🎨 Digital & Poster Design Blueprint", cost: 85000 },
-                { id: "Private_School", name: "🏫 Private Polytechnic Owner Blueprint", cost: 200000 },
+                { id: "Eatery", name: "🍲 Industrial Catering & Restaurant Blueprint", cost: 180000 },
+                { id: "Farming", name: "🌾 Mechanized Commercial Farming Blueprint", cost: 220000 },
+                { id: "Digital_Agency", name: "🎨 Media, Billboard & CAC Agency Blueprint", cost: 260000 },
+                { id: "Architecture", name: "📐 Structural Architecture & Estate Blueprint", cost: 350000 },
+                { id: "Private_School", name: "🏫 Private Polytechnic Accreditation Blueprint", cost: 450000 },
               ].map((bp) => {
-                const isOwned = ownedBlueprints.includes(bp.id);
+                const owned = ownedBlueprints.includes(bp.id);
                 const cd = timers[`bp_${bp.id}`];
                 return (
                   <button
                     key={bp.id}
-                    disabled={isOwned || !!cd}
+                    disabled={owned || !!cd}
                     onClick={() => {
                       if (spendMoney(bp.cost)) {
-                        startCooldown(`bp_${bp.id}`, 15);
-                        setLogMessage(`📘 Studying ${bp.name} (15s)...`);
+                        startCooldown(`bp_${bp.id}`, 90);
                         setTimeout(() => {
                           setOwnedBlueprints((p) => [...p, bp.id]);
-                          setLogMessage(`✅ Certified in ${bp.name}!`);
-                        }, 15000);
+                          setCertificatesList((c) => [...c, `${bp.id} Blueprint Cert`]);
+                          setLogMessage(`📘 Certified in ${bp.name}! Added to Profile.`);
+                        }, 90000);
                       }
                     }}
                     className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center disabled:opacity-40"
                   >
-                    <span className="font-bold text-left">
-                      {cd ? `⏳ Studying (${formatSecs(cd)})` : isOwned ? `✓ Certified: ${bp.id}` : bp.name}
-                    </span>
-                    <span className="text-emerald-400 font-bold">{bp.cost.toLocaleString()} g₦</span>
+                    <span className="font-bold text-left">{cd ? `⏳ Studying (${formatSecs(cd)})` : owned ? `✓ Certified: ${bp.id}` : bp.name}</span>
+                    <span className="text-emerald-400 font-bold shrink-0">{bp.cost.toLocaleString()} g₦</span>
                   </button>
                 );
               })}
@@ -875,171 +1253,155 @@ export default function LagosEmpireFullGame() {
 
             {/* CV AGENCY & WARDROBE */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-cyan-400">📄 CV Agency & Boutique</h2>
-              <button onClick={() => { setCvScore(25); setLogMessage("📝 Drafted unstructured DIY CV (25%)."); }} className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between font-bold">
+              <h2 className="font-bold text-sm text-cyan-400">📄 CV Agency & Wardrobe</h2>
+              <button onClick={() => { setCvScore(25); setLogMessage("📝 Drafted DIY CV (25%)."); }} className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between font-bold">
                 <span>DIY Unstructured CV</span><span className="text-slate-400">FREE (25%)</span>
               </button>
               <button
-                disabled={!!timers.cv_wait}
+                disabled={!!timers.cv_cd}
                 onClick={() => {
-                  if (spendMoney(35000)) {
-                    startCooldown("cv_wait", 12);
+                  if (spendMoney(55000)) {
+                    startCooldown("cv_cd", 60);
                     setTimeout(() => {
                       setCvScore(95);
-                      setLogMessage("💼 Pro CV Agency delivered your 95% Executive CV!");
-                    }, 12000);
+                      setLogMessage("💼 Executive 95% CV completed!");
+                    }, 60000);
                   }
                 }}
                 className="w-full p-3 bg-emerald-950/40 border border-emerald-700 rounded-xl flex justify-between font-bold"
               >
-                <span>{timers.cv_wait ? `⏳ Agency Writing CV (${formatSecs(timers.cv_wait)})` : "Hire Pro CV Agency"}</span>
-                <span className="text-emerald-400">35,000 g₦ (95%)</span>
+                <span>{timers.cv_cd ? `⏳ Writing (${formatSecs(timers.cv_cd)})` : "Hire Pro CV Agency (60s)"}</span>
+                <span className="text-emerald-400">55,000 g₦ (95%)</span>
               </button>
 
-              <div className="pt-2 font-bold text-slate-400 uppercase">Wardrobe Boutique</div>
               <button
                 disabled={hasCorporateSuit}
                 onClick={() => {
-                  if (spendMoney(45000)) {
-                    setOutfit("Tailored Corporate Suit & Italian Shoes");
+                  if (spendMoney(65000)) {
+                    setOutfit("Bespoke Corporate Suit & Shoes");
                     setHasCorporateSuit(true);
-                    setSteeze((p) => p + 35);
-                    setLogMessage("👔 Bought Tailored Corporate Suit!");
+                    setSteeze((s) => s + 35);
+                    setLogMessage("👔 Bought Bespoke Corporate Suit!");
                   }
                 }}
                 className="w-full p-3 bg-amber-950/40 border border-amber-700 rounded-xl flex justify-between font-bold disabled:opacity-40"
               >
-                <span>{hasCorporateSuit ? "✓ Corporate Suit Owned" : "👔 Tailored Corporate Suit"}</span>
-                <span className="text-amber-400">45,000 g₦</span>
+                <span>{hasCorporateSuit ? "✓ Suit Owned" : "👔 Buy Bespoke Corporate Suit"}</span>
+                <span className="text-amber-400">65,000 g₦</span>
               </button>
             </div>
           </div>
         )}
 
         {/* =====================================================================
-            TAB 4: CAC + C-OF-O COUNTDOWNS, 6 BUILDINGS, 5 AREAS & 7 CARS!
+            TAB 5: 🏛️ CAC + LAND C-OF-O (120s WAIT), 2 ESTATES PER AREA & 10 CARS
            ===================================================================== */}
         {activeTab === "empire" && (
           <div className="grid md:grid-cols-3 gap-4 text-xs">
-            {/* COLUMN 1: CAC, LAND C-OF-O (WITH COUNTDOWN) & COMMERCIAL BUILDINGS */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-amber-400">🏛️ CAC, C-of-O & Commercial Buildings</h2>
+            {/* CAC, LAND C-OF-O (INCREASED PRICE + 90s-120s TIMERS) & BUILDINGS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-amber-400">🏛️ CAC, Land C-of-O & Buildings</h2>
 
-              {/* STEP 1: CAC */}
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div className="font-bold text-white">1. CAC Corporate Certificate: <span className="text-emerald-400">{cacStatus}</span></div>
+              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <div className="font-bold">1. CAC Status: <span className="text-emerald-400">{cacStatus}</span></div>
                 {cacStatus === "None" && (
                   <>
                     <input
                       type="text"
-                      placeholder="Company Name (e.g. Oreva Holdings)"
+                      placeholder="Company Name..."
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"
+                      className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-white"
                     />
                     <button
                       onClick={() => {
                         if (!companyName.trim()) return setLogMessage("⚠️ Enter Company Name!");
-                        if (spendMoney(450000)) {
+                        if (spendMoney(650000)) {
                           setCacStatus("Processing");
-                          startCooldown("cac_wait", 20);
-                          setLogMessage("🏛️ CAC Registration submitted! Government approval takes 20s...");
+                          startCooldown("cac_cd", 90);
                           setTimeout(() => {
                             setCacStatus("Approved");
-                            setCompanyValuation(150000000);
-                            setLogMessage(`✅ CAC Certificate Issued for ${companyName}!`);
-                          }, 20000);
+                            setCertificatesList((c) => [...c, `CAC Certificate (${companyName})`]);
+                            setLogMessage(`✅ CAC Approved for ${companyName}!`);
+                          }, 90000);
                         }
                       }}
-                      className="w-full py-2 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
+                      className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded"
                     >
-                      Apply for CAC Certificate (450k g₦ • 20s Wait)
+                      Register CAC (650,000 g₦ • 90s Wait)
                     </button>
                   </>
                 )}
-                {cacStatus === "Processing" && (
-                  <div className="text-amber-400 font-bold">⏳ CAC Approval Countdown: {formatSecs(timers.cac_wait)}</div>
-                )}
+                {cacStatus === "Processing" && <div className="text-amber-400 font-bold">⏳ CAC Approval: {formatSecs(timers.cac_cd)}</div>}
               </div>
 
-              {/* STEP 2: LAND C-OF-O (CERTIFICATE OF OCCUPANCY) WITH COUNTDOWN */}
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div className="font-bold text-white">2. Land C-of-O (Cert. of Occupancy): <span className="text-emerald-400">{cofoStatus}</span></div>
+              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                <div className="font-bold">2. Commercial Land & C-of-O: <span className="text-emerald-400">{cofoStatus}</span></div>
                 {cofoStatus === "None" && (
                   <button
                     onClick={() => {
-                      if (spendMoney(600000)) {
+                      if (spendMoney(1200000)) {
                         setCofoStatus("Processing");
-                        startCooldown("cofo_wait", 25);
-                        setLogMessage("📜 Land C-of-O application submitted to Lagos Lands Bureau! Countdown: 25s...");
+                        startCooldown("cofo_cd", 120); // 2-Minute Minimum Wait!
                         setTimeout(() => {
                           setCofoStatus("Approved");
-                          setLogMessage("✅ Governor signed your Land C-of-O! You can now build commercial structures.");
-                        }, 25000);
+                          setCertificatesList((c) => [...c, `Land C-of-O (${area})`]);
+                          setLogMessage("✅ Commercial Land & C-of-O Signed!");
+                        }, 120000);
                       }
                     }}
-                    className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg"
+                    className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded"
                   >
-                    Purchase Land & C-of-O (600k g₦ • 25s Wait)
+                    Buy Land & C-of-O (1,200,000 g₦ • 120s Wait)
                   </button>
                 )}
-                {cofoStatus === "Processing" && (
-                  <div className="text-amber-400 font-bold">⏳ C-of-O Signing Countdown: {formatSecs(timers.cofo_wait)}</div>
-                )}
+                {cofoStatus === "Processing" && <div className="text-amber-400 font-bold">⏳ C-of-O Countdown: {formatSecs(timers.cofo_cd)}</div>}
               </div>
 
-              {/* STEP 3: BUILD COMMERCIAL BUILDINGS (Eatery, School, Agency, Parking, Farm) */}
-              <div className="font-bold text-slate-400 uppercase pt-1">3. Construct Commercial Buildings (Req: CAC + C-of-O)</div>
               {[
-                { id: "Eatery_Branch", name: "🍽️ Fast-Food Eatery Restaurant", bp: "Eatery", cost: 850000, rev: 95000 },
-                { id: "Design_Agency", name: "🎨 Digital & Poster Design Agency", bp: "Digital_Agency", cost: 700000, rev: 85000 },
-                { id: "Private_Poly", name: "🏫 Private Polytechnic School", bp: "Private_School", cost: 1800000, rev: 220000 },
-                { id: "Commercial_Park", name: "🅿️ 10-Slot Commercial Parking Lot", bp: "Architecture", cost: 500000, rev: 55000 },
-                { id: "Commercial_Farm", name: "🌾 Mechanized Farmland Estate", bp: "Farming", cost: 450000, rev: 140000 },
+                { id: "Eatery_Biz", name: "🍽️ Commercial Eatery Complex", bp: "Eatery", cost: 1100000, rev: 120000 },
+                { id: "Agency_Biz", name: "🎨 Digital & Billboard Agency", bp: "Digital_Agency", cost: 950000, rev: 105000 },
+                { id: "School_Biz", name: "🏫 Private Polytechnic Campus", bp: "Private_School", cost: 2400000, rev: 290000 },
+                { id: "Farm_Biz", name: "🌾 Mechanized Farmland", bp: "Farming", cost: 800000, rev: 165000 },
               ].map((b) => {
-                const built = ownedBuildings.includes(b.id);
-                const buildCd = timers[`build_${b.id}`];
+                const owned = ownedBuildings.includes(b.id);
+                const cd = timers[`b_${b.id}`];
                 return (
-                  <div key={b.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
-                    <div className="flex justify-between font-bold">
-                      <span>{b.name}</span>
-                      <span className="text-amber-400">{(b.cost / 1000).toFixed(0)}k g₦</span>
+                  <div key={b.id} className="p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="font-bold text-white">{b.name}</div>
+                      <div className="text-[10px] text-amber-400">{b.cost.toLocaleString()} g₦ • Req: {b.bp} BP</div>
                     </div>
-                    {built ? (
+                    {owned ? (
                       <button
-                        disabled={!!timers[`rev_${b.id}`]}
+                        disabled={!!timers[`r_${b.id}`]}
                         onClick={() => {
-                          startCooldown(`rev_${b.id}`, 30);
+                          startCooldown(`r_${b.id}`, 90);
                           setEarnedBalance((p) => p + b.rev);
-                          setCompanyValuation((p) => p + 150000000);
-                          setLogMessage(`💰 Collected +${b.rev.toLocaleString()} g₦ revenue from ${b.name}!`);
+                          setLogMessage(`💰 Collected +${b.rev.toLocaleString()} g₦ from ${b.name}!`);
                         }}
-                        className="w-full py-1.5 bg-emerald-600 text-white font-bold rounded-lg disabled:opacity-40"
+                        className="px-2.5 py-1 bg-emerald-500 text-slate-950 font-extrabold rounded"
                       >
-                        {timers[`rev_${b.id}`] ? `⏳ Next Payout: ${formatSecs(timers[`rev_${b.id}`])}` : `Collect Revenue (+${b.rev.toLocaleString()} g₦)`}
+                        {timers[`r_${b.id}`] ? formatSecs(timers[`r_${b.id}`]) : `+${(b.rev / 1000).toFixed(0)}k`}
                       </button>
                     ) : (
                       <button
-                        disabled={!!buildCd}
+                        disabled={!!cd}
                         onClick={() => {
-                          if (cacStatus !== "Approved" || cofoStatus !== "Approved") {
-                            return setLogMessage("❌ You must secure both CAC Approval and Land C-of-O before constructing buildings!");
-                          }
-                          if (!ownedBlueprints.includes(b.bp)) {
-                            return setLogMessage(`❌ You need the ${b.bp} Blueprint from the School tab first!`);
-                          }
+                          if (cacStatus !== "Approved" || cofoStatus !== "Approved") return setLogMessage("❌ Need CAC & Land C-of-O first!");
+                          if (!ownedBlueprints.includes(b.bp)) return setLogMessage(`❌ Need ${b.bp} Blueprint first!`);
                           if (spendMoney(b.cost)) {
-                            startCooldown(`build_${b.id}`, 20);
-                            setLogMessage(`🏗️ Architects & Builders constructing ${b.name} (20s)...`);
+                            startCooldown(`b_${b.id}`, 90);
                             setTimeout(() => {
                               setOwnedBuildings((p) => [...p, b.id]);
-                              setLogMessage(`🏢 ${b.name} construction complete!`);
-                            }, 20000);
+                              setCertificatesList((c) => [...c, `Building Deed: ${b.name}`]);
+                              setLogMessage(`🏢 Built ${b.name}!`);
+                            }, 90000);
                           }
                         }}
-                        className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg"
+                        className="px-2.5 py-1 bg-slate-800 text-white font-bold rounded"
                       >
-                        {buildCd ? `🏗️ Building (${formatSecs(buildCd)})` : `Construct (Req: ${b.bp} BP)`}
+                        {cd ? formatSecs(cd) : "Build"}
                       </button>
                     )}
                   </div>
@@ -1047,85 +1409,82 @@ export default function LagosEmpireFullGame() {
               })}
             </div>
 
-            {/* COLUMN 2: RESIDENTIAL REAL ESTATE BY AREA (OSHODI, BERGER, YABA, SURULERE, LEKKI) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-              <h2 className="font-bold text-sm text-cyan-400">🏡 Residential Real Estate (By Area)</h2>
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
-                Current Residence: <strong className="text-emerald-400">{shelterType} ({shelterArea})</strong> • Parking: <strong>{parkingSlots} Slots</strong>
-              </div>
+            {/* 2 RESIDENTIAL PROPERTIES PER AREA (10 TOTAL) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[520px] overflow-y-auto">
+              <h2 className="font-bold text-sm text-cyan-400">🏡 Real Estate (2 Properties Per Area)</h2>
               {[
-                { name: "Self-Contain Studio", area: "Berger" as const, parking: 1, cost: 180000 },
-                { name: "2-Bedroom Flat", area: "Yaba" as const, parking: 2, cost: 350000 },
-                { name: "3-Bedroom Executive Flat", area: "Surulere" as const, parking: 3, cost: 750000 },
-                { name: "5-Bed Luxury Detached Duplex", area: "Lekki" as const, parking: 5, cost: 2200000 },
-                { name: "Waterfront Mansion Duplex", area: "Lekki" as const, parking: 8, cost: 5500000 },
-              ].map((h, i) => {
-                const isCurrent = shelterType === h.name;
-                return (
-                  <div key={i} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                    <div className="flex justify-between font-bold text-white">
-                      <span>{h.name} (📍 {h.area})</span>
-                      <span className="text-amber-400">{h.cost.toLocaleString()} g₦</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">Includes {h.parking} Gated Parking Slots • +10% Agent & 5% State Tax</div>
-                    <button
-                      disabled={isCurrent}
-                      onClick={() => {
-                        if (spendMoney(h.cost)) {
-                          setShelterType(h.name);
-                          setShelterArea(h.area);
-                          setParkingSlots(h.parking);
-                          setSteeze((p) => p + 25);
-                          setLogMessage(`🏡 Acquired ${h.name} in ${h.area}! Parking capacity is now ${h.parking} cars.`);
-                        }
-                      }}
-                      className="w-full py-1.5 bg-cyan-600 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
-                    >
-                      {isCurrent ? "✓ Current Residence" : `Acquire in ${h.area}`}
-                    </button>
+                { name: "Oshodi Room & Parlor", area: "Oshodi" as AreaName, park: 1, cost: 140000 },
+                { name: "Oshodi 2-Bed Flat", area: "Oshodi" as AreaName, park: 2, cost: 280000 },
+                { name: "Berger Self-Contain", area: "Berger" as AreaName, park: 1, cost: 190000 },
+                { name: "Berger 3-Bed Highway Flat", area: "Berger" as AreaName, park: 3, cost: 520000 },
+                { name: "Yaba Tech Studio Flat", area: "Yaba" as AreaName, park: 2, cost: 380000 },
+                { name: "Yaba 3-Bed Terrace", area: "Yaba" as AreaName, park: 3, cost: 820000 },
+                { name: "Surulere Family 3-Bed Flat", area: "Surulere" as AreaName, park: 3, cost: 750000 },
+                { name: "Surulere 4-Bed Semi-Detached Duplex", area: "Surulere" as AreaName, park: 4, cost: 1650000 },
+                { name: "Lekki Phase 1 5-Bed Luxury Duplex", area: "Lekki" as AreaName, park: 5, cost: 2600000 },
+                { name: "Lekki Waterfront 7-Bed Mansion Duplex", area: "Lekki" as AreaName, park: 8, cost: 6200000 },
+              ].map((h, i) => (
+                <div key={i} className="p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-white">{h.name}</div>
+                    <div className="text-[10px] text-slate-400">📍 {h.area} • 🅿️ {h.park} Parking • {h.cost.toLocaleString()} g₦</div>
                   </div>
-                );
-              })}
+                  <button
+                    disabled={shelterType === h.name}
+                    onClick={() => {
+                      if (spendMoney(h.cost)) {
+                        setShelterType(h.name);
+                        setShelterArea(h.area);
+                        setParkingSlots(h.park);
+                        setCertificatesList((c) => [...c, `Property: ${h.name} (${h.area})`]);
+                        setLogMessage(`🏡 Moved into ${h.name} in ${h.area}!`);
+                      }
+                    }}
+                    className="px-2.5 py-1 bg-cyan-500 text-slate-950 font-extrabold rounded disabled:opacity-40"
+                  >
+                    {shelterType === h.name ? "✓ Home" : "Acquire"}
+                  </button>
+                </div>
+              ))}
             </div>
 
-            {/* COLUMN 3: FULL 7-CAR AUTOMOBILE DEALERSHIP */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-              <h2 className="font-bold text-sm text-emerald-400">🚗 Lagos Auto Dealership (7 Models)</h2>
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
-                Garage ({carsOwned.length}/{parkingSlots} Slots Used):{" "}
-                <strong className="text-amber-400">{carsOwned.length > 0 ? carsOwned.join(", ") : "No Cars Owned"}</strong>
-              </div>
+            {/* 10 CARS DEALERSHIP */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 max-h-[520px] overflow-y-auto">
+              <h2 className="font-bold text-sm text-emerald-400">🚗 Automobile Dealership (10 Cars)</h2>
+              <div className="text-[11px] text-amber-300">Parking Used: {carsOwned.length} / {parkingSlots} Slots</div>
               {[
-                { name: "Tokunbo Toyota Corolla", cost: 1200000, steeze: 25 },
-                { name: "Honda Accord 'Evil Spirit'", cost: 1800000, steeze: 35 },
-                { name: "Lexus RX350 SUV", cost: 2600000, steeze: 50 },
-                { name: "Mercedes-Benz C300", cost: 3800000, steeze: 65 },
-                { name: "Toyota Land Cruiser Prado", cost: 5200000, steeze: 80 },
-                { name: "Mercedes-AMG G63 G-Wagon", cost: 7200000, steeze: 110 },
-                { name: "Lamborghini Urus Performante", cost: 9500000, steeze: 150 },
+                { name: "Suzuki Every 'Korope' Mini", cost: 750000, st: 10 },
+                { name: "Tokunbo Toyota Corolla", cost: 1200000, st: 25 },
+                { name: "Honda Accord 'Evil Spirit'", cost: 1800000, st: 35 },
+                { name: "Toyota Camry 'Muscle'", cost: 2100000, st: 40 },
+                { name: "Lexus RX350 SUV", cost: 2800000, st: 55 },
+                { name: "Mercedes-Benz C300", cost: 3900000, st: 70 },
+                { name: "Toyota Land Cruiser Prado", cost: 5400000, st: 85 },
+                { name: "Range Rover Autobiography", cost: 6800000, st: 105 },
+                { name: "Mercedes-AMG G63 G-Wagon", cost: 8200000, st: 130 },
+                { name: "Lamborghini Urus Performante", cost: 10500000, st: 170 },
               ].map((c, i) => {
                 const owned = carsOwned.includes(c.name);
                 return (
                   <div key={i} className="p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
                     <div>
                       <div className="font-bold text-white">{c.name}</div>
-                      <div className="text-[10px] text-emerald-400">{c.cost.toLocaleString()} g₦ • +{c.steeze} Steeze</div>
+                      <div className="text-[10px] text-emerald-400">{c.cost.toLocaleString()} g₦ • +{c.st} Steeze</div>
                     </div>
                     <button
                       disabled={owned}
                       onClick={() => {
-                        if (carsOwned.length >= parkingSlots) {
-                          return setLogMessage(`🚓 LASTMA PARKING BLOCK! You have ${carsOwned.length}/${parkingSlots} parking slots. Upgrade to a larger Flat or Duplex first!`);
-                        }
+                        if (carsOwned.length >= parkingSlots) return setLogMessage("🚓 Need more Parking Slots!");
                         if (spendMoney(c.cost)) {
                           setCarsOwned((p) => [...p, c.name]);
-                          setSteeze((p) => p + c.steeze);
-                          setLogMessage(`🏎️ Purchased ${c.name}! Parked in slot ${carsOwned.length + 1}/${parkingSlots}.`);
+                          setCertificatesList((cert) => [...cert, `Vehicle: ${c.name}`]);
+                          setSteeze((s) => s + c.st);
+                          setLogMessage(`🏎️ Bought ${c.name}! Added to Profile Achievements.`);
                         }
                       }}
-                      className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
+                      className="px-2.5 py-1 bg-emerald-500 text-slate-950 font-extrabold rounded disabled:opacity-40"
                     >
-                      {owned ? "✓ Owned" : "Buy Car"}
+                      {owned ? "✓ Owned" : "Buy"}
                     </button>
                   </div>
                 );
@@ -1135,126 +1494,67 @@ export default function LagosEmpireFullGame() {
         )}
 
         {/* =====================================================================
-            TAB 5: STEP-BY-STEP POLITICS (JOIN -> APPROVAL -> BUY FORM -> SUBMIT -> VOTE)
+            TAB 6: 🗳️ POLITICS (30K PARTY FEE, 450K NOMINATION FORM & CITY BILLBOARD)
            ===================================================================== */}
         {activeTab === "politics" && (
           <div className="grid md:grid-cols-2 gap-4 text-xs">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-emerald-400">🏛️ Step-by-Step Party & Nomination Pipeline</h2>
-              <p className="text-slate-400">
-                Joining a party is separate from buying a Nomination Form! Each step requires official verification timers.
-              </p>
-
-              {/* STEP 1: JOIN PARTY & WAIT FOR APPROVAL */}
+              <h2 className="font-bold text-sm text-emerald-400">🏛️ Party Membership (30k) & Nomination (450k)</h2>
               <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div className="font-bold">Step 1: Party Membership Status: <span className="text-amber-400">{partyStatus}</span></div>
+                <div>Step 1: Party Status: <strong className="text-amber-400">{partyStatus}</strong></div>
                 {partyStatus === "None" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        if (spendMoney(15000)) {
-                          setPartyStatus("Pending_Approval");
-                          startCooldown("party_wait", 15);
-                          setLogMessage("🟢 Applied to join JPC Party! Screening takes 15s...");
-                          setTimeout(() => {
-                            setPartyStatus("Member_JPC");
-                            setLogMessage("✅ JPC Party Card Issued! You can now purchase a Nomination Form.");
-                          }, 15000);
-                        }
-                      }}
-                      className="py-2 bg-emerald-600 text-white font-bold rounded-lg"
-                    >
-                      Apply to Join JPC (15k)
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (spendMoney(15000)) {
-                          setPartyStatus("Pending_Approval");
-                          startCooldown("party_wait", 15);
-                          setTimeout(() => {
-                            setPartyStatus("Member_JSTD");
-                            setLogMessage("✅ JSTD Party Card Issued!");
-                          }, 15000);
-                        }
-                      }}
-                      className="py-2 bg-indigo-600 text-white font-bold rounded-lg"
-                    >
-                      Apply to Join JSTD (15k)
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      if (spendMoney(30000)) {
+                        setPartyStatus("Pending_Approval");
+                        startCooldown("p_wait", 60);
+                        setTimeout(() => {
+                          setPartyStatus("Member_JPC");
+                          setCertificatesList((c) => [...c, "JPC Official Party Card"]);
+                          setLogMessage("✅ JPC Membership Approved!");
+                        }, 60000);
+                      }
+                    }}
+                    className="w-full py-2 bg-emerald-600 text-white font-bold rounded-lg"
+                  >
+                    Join JPC Ruling Party (30,000 g₦ • 60s Approval)
+                  </button>
                 )}
-                {partyStatus === "Pending_Approval" && (
-                  <div className="text-amber-400 font-bold">⏳ Party Screening Countdown: {formatSecs(timers.party_wait)}</div>
-                )}
+                {partyStatus === "Pending_Approval" && <div>⏳ Screening: {formatSecs(timers.p_wait)}</div>}
               </div>
 
-              {/* STEP 2: BUY NOMINATION FORM (SEPARATE FROM JOINING!) */}
               <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div className="font-bold">Step 2: Chairman/President Nomination Form: <span className="text-amber-400">{nominationStatus}</span></div>
+                <div>Step 2: Nomination Form (450,000 g₦): <strong className="text-amber-400">{nominationStatus}</strong></div>
                 {nominationStatus === "None" && (
                   <button
                     onClick={() => {
-                      if (partyStatus !== "Member_JPC" && partyStatus !== "Member_JSTD") {
-                        return setLogMessage("❌ You must be an approved Party Member (Step 1) before buying a Nomination Form!");
-                      }
-                      if (spendMoney(250000)) {
-                        setNominationStatus("Form_Purchased");
-                        startCooldown("form_deadline", 120);
-                        setLogMessage("📜 Nomination Form Collected! Fill & submit it before the 120s deadline expires!");
+                      if (partyStatus !== "Member_JPC") return setLogMessage("❌ Must be an approved Party Member first!");
+                      if (spendMoney(450000)) {
+                        setNominationStatus("Submitted_Verified");
+                        setCertificatesList((c) => [...c, `${area} Chairman Candidate Certificate`]);
+                        setLogMessage("📜 Nomination Form Purchased & Verified!");
                       }
                     }}
                     className="w-full py-2 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
                   >
-                    Buy Official Nomination Form (250,000 g₦)
+                    Purchase Chairman Nomination Form (450,000 g₦)
                   </button>
                 )}
-                {nominationStatus === "Form_Purchased" && (
-                  <div className="space-y-2">
-                    <div className="text-rose-400 font-bold">⏳ Submission Deadline: {formatSecs(timers.form_deadline)} remaining</div>
-                    <button
-                      onClick={() => {
-                        startCooldown("vetting_wait", 15);
-                        setTimeout(() => {
-                          setNominationStatus("Submitted_Verified");
-                          setLogMessage("✅ Nomination Form Vetted & Cleared for the Primary Ballot Shuffle!");
-                        }, 15000);
-                      }}
-                      className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
-                    >
-                      {timers.vetting_wait ? `⏳ Electoral Vetting (${formatSecs(timers.vetting_wait)})` : "Submit Completed Form for Vetting"}
-                    </button>
-                  </div>
-                )}
               </div>
-
-              {/* STEP 3: LIVE PRIMARY SHUFFLE */}
-              <button
-                onClick={() => {
-                  if (nominationStatus !== "Submitted_Verified") {
-                    return setLogMessage("❌ Complete Step 1 (Party Approval) & Step 2 (Submit Nomination Form) to enter the Shuffle!");
-                  }
-                  setShuffledFinalists([`${username} (${partyStatus})`, "Chief Balogun (JPC)", "Engr. Tunde (JPC)", "Barr. Chidinma (JSTD)", "Alhaji Musa (JPC)"]);
-                  setLogMessage("🎲 Live Drum Shuffled! Your name is on the Top 5 Finalist Ballot!");
-                }}
-                className="w-full py-2.5 bg-indigo-600 text-white font-extrabold rounded-xl"
-              >
-                🎲 Step 3: Enter Live Top-5 Primary Shuffle
-              </button>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-amber-400">🖼️ Campaign Poster & Ballot Box</h2>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1">
-                <div className="font-bold text-slate-400 uppercase">Cleared Finalists ({area} Chairman):</div>
-                {shuffledFinalists.map((c, i) => <div key={i} className="py-0.5">#{i + 1} {c}</div>)}
-              </div>
-
+              <h2 className="font-bold text-sm text-amber-400">📢 City Billboard Slot (75k) & Voting (5k Reward)</h2>
               <button
-                disabled={hasPosterLive}
-                onClick={() => { if (spendMoney(50000)) { setHasPosterLive(true); setLogMessage("🎨 Poster Published by Design Agency! +10 State Bonus Votes."); }}}
-                className="w-full p-2.5 bg-indigo-950/60 border border-indigo-600 rounded-xl font-bold disabled:opacity-40"
+                onClick={() => {
+                  if (spendMoney(75000)) {
+                    setCityBillboardText(`🗳️ VOTE ${username.toUpperCase()} FOR ${area.toUpperCase()} CHAIRMAN (JPC) — Designed by SkyHigh Agency!`);
+                    setLogMessage("📢 Your Campaign Banner is now live on the top City Billboard across Lagos!");
+                  }
+                }}
+                className="w-full py-2.5 bg-indigo-600 text-white font-extrabold rounded-xl"
               >
-                {hasPosterLive ? "✓ Campaign Poster Live (+10 Votes)" : "Hire Design Agency for Campaign Poster (50k g₦)"}
+                🎨 Hire Agency & Post on City Billboard Slot (75,000 g₦)
               </button>
 
               <button
@@ -1263,205 +1563,162 @@ export default function LagosEmpireFullGame() {
                   setHasVoted(true);
                   setEarnedBalance((p) => p + 5000);
                   setCitizenPoints((p) => p + 20);
-                  setLogMessage("🗳️ Vote Cast! +5,000 g₦ Civic Stipend & +20 Citizen Points awarded.");
+                  setLogMessage("🗳️ Cast Ballot! Received +5,000 g₦ Voter Stipend!");
                 }}
                 className="w-full py-3 bg-emerald-500 text-slate-950 font-extrabold rounded-xl disabled:opacity-40"
               >
-                {hasVoted ? "✓ Voted in Current Cycle" : "🗳️ Cast Ballot (+5,000 g₦ Voter Reward)"}
+                {hasVoted ? "✓ Voted" : "🗳️ Cast Ballot (+5,000 g₦ Voter Reward)"}
               </button>
             </div>
           </div>
         )}
 
         {/* =====================================================================
-            TAB 6: COURTSHIP/COUPLE INTERACTION, SOCIAL FEED & LIVE 300M RESERVE BANK
+            TAB 7: 🏆 PROFILE ACHIEVEMENTS, MICRO BUY-IN (FROM ₦500), LOANS & P2P
            ===================================================================== */}
-        {activeTab === "lifestyle" && (
+        {activeTab === "profile" && (
           <div className="grid md:grid-cols-3 gap-4 text-xs">
-            {/* COLUMN 1: COURTSHIP, COUPLE BONDING & MARRIAGE REGISTRY */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-rose-400">💑 Courtship, Couple Bond & Marriage</h2>
-              <p className="text-slate-400">
-                You cannot marry while Single! Meet a partner, court them to 100% Relationship Bond, and furnish your home first.
-              </p>
-
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
-                <div>Status: <strong className="text-rose-400">{maritalStatus}</strong></div>
-                <div>Partner: <strong className="text-white">{partnerName}</strong></div>
-                <div>Couple Bond: <strong className="text-emerald-400">{relationshipBond}% / 100%</strong></div>
+            {/* CITIZEN PROFILE & ACHIEVEMENTS LEDGER */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-amber-400 flex items-center gap-1.5">
+                <Award className="w-4 h-4" /> {username}'s Achievements & Certificates
+              </h2>
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
+                <div>🎓 Highest Education: <strong>{education}</strong></div>
+                <div>💼 CV Score: <strong>{cvScore}%</strong> • Steeze: <strong>{steeze} pts</strong></div>
+                <div>🏠 Residence: <strong>{shelterType} ({shelterArea})</strong></div>
+                <div>🚗 Cars ({carsOwned.length}): <strong>{carsOwned.join(", ") || "None"}</strong></div>
               </div>
-
-              {maritalStatus === "Single" && (
-                <div className="space-y-1.5">
-                  <div className="font-bold text-slate-400">Meet Citizens Looking for Relationship:</div>
-                  {(gender === "male" ? ["Chidinma (Yaba)", "Zainab (Lekki)", "Tolu (Surulere)"] : ["Adewale (Lekki)", "Chinedu (Yaba)", "Ibrahim (Berger)"]).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => {
-                        setPartnerName(p);
-                        setMaritalStatus("Courting");
-                        setRelationshipBond(25);
-                        setLogMessage(`❤️ Started courting ${p}! Go on dates to reach 100% Bond before marriage.`);
-                      }}
-                      className="w-full p-2 bg-slate-950 border border-slate-800 hover:border-rose-500 rounded-lg flex justify-between"
-                    >
-                      <span>💬 Ask Out: {p}</span>
-                      <span className="text-rose-400 font-bold">Start Courting</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {maritalStatus === "Courting" && (
-                <div className="space-y-2">
-                  <button
-                    disabled={!!timers.date_cd}
-                    onClick={() => {
-                      if (spendMoney(15000)) {
-                        startCooldown("date_cd", 15);
-                        setRelationshipBond((b) => Math.min(100, b + 25));
-                        setLogMessage(`🍷 Took ${partnerName} on an Eatery Outing! Bond +25%.`);
-                      }
-                    }}
-                    className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg disabled:opacity-40"
-                  >
-                    {timers.date_cd ? `⏳ On Date (${formatSecs(timers.date_cd)})` : `🍷 Take ${partnerName} on Date (15k • +25% Bond)`}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (relationshipBond < 100) return setLogMessage(`❌ Bond with ${partnerName} is only ${relationshipBond}%! Reach 100% Bond first.`);
-                      if (wallColor === "Unplastered" || bedTier === "Bare_Floor" || chairTier === "None") {
-                        return setLogMessage("❌ Partner's family rejected the wedding! Paint your room and buy a Bed & Sofa first.");
-                      }
-                      if (spendMoney(100000)) {
-                        setMaritalStatus("Married");
-                        setSteeze((p) => p + 50);
-                        setLogMessage(`💍 Married ${partnerName} at the Ikoyi Registry! Dual-income & +50 Respect unlocked!`);
-                      }
-                    }}
-                    className="w-full py-2.5 bg-rose-600 text-white font-extrabold rounded-xl"
-                  >
-                    💍 Registry Wedding (Req: 100% Bond & Furnished Home)
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* COLUMN 2: PUBLIC CITIZEN SOCIAL WALL (INTERACT & POST) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-cyan-400">💬 Lagos Citizen Social Feed</h2>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Post an announcement, job, or flex..."
-                  value={socialPostInput}
-                  onChange={(e) => setSocialPostInput(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white"
-                />
-                <button
-                  onClick={() => {
-                    if (!socialPostInput.trim()) return;
-                    setSocialFeed((p) => [{ author: `@${username}`, text: socialPostInput, time: "Just now" }, ...p]);
-                    setSocialPostInput("");
-                    setCitizenPoints((p) => p + 5);
-                    setLogMessage("📢 Posted to the Lagos Citizen Feed! (+5 Citizen Points)");
-                  }}
-                  className="px-3 py-1.5 bg-cyan-500 text-slate-950 font-extrabold rounded-lg"
-                >
-                  Post
-                </button>
-              </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {socialFeed.map((post, i) => (
-                  <div key={i} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="flex justify-between text-[10px] text-emerald-400 font-bold">
-                      <span>{post.author}</span>
-                      <span className="text-slate-500">{post.time}</span>
+              <div className="font-bold text-slate-400 uppercase">Verified Certificates & Deeds ({certificatesList.length}):</div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {certificatesList.length === 0 ? (
+                  <div className="text-slate-500 italic">No certificates earned yet. Complete school, blueprints, or buy properties!</div>
+                ) : (
+                  certificatesList.map((c, i) => (
+                    <div key={i} className="p-2 bg-emerald-950/30 border border-emerald-800 rounded-lg text-emerald-300 font-bold">
+                      ✓ {c}
                     </div>
-                    <p className="text-slate-200 mt-1">{post.text}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
-            {/* COLUMN 3: CENTRAL BANK WITH LIVE DECREASING 300M RESERVE */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-emerald-400">🏦 Central Bank (Live 300M Cap)</h2>
-              <div className="p-3 bg-slate-950 border border-emerald-800/60 rounded-xl space-y-1.5">
-                <div className="text-[10px] text-slate-400 uppercase">Genesis Supply Cap: 300,000,000 g₦</div>
-                <div className="font-extrabold text-sm text-amber-400">
-                  Available Reserve: {centralBankReserve.toLocaleString()} g₦
-                </div>
-                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500"
-                    style={{ width: `${(centralBankReserve / 300000000) * 100}%` }}
-                  />
-                </div>
-                <div className="text-[10px] text-emerald-400">
-                  Bought by Players: {(300000000 - centralBankReserve).toLocaleString()} g₦
-                </div>
+            {/* CENTRAL BANK MICRO BUY-IN TIERS (₦500, ₦1,000, ₦5,000, ₦10,000) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-emerald-400">🏦 Central Bank (Buy-In From ₦500)</h2>
+              <div className="p-2.5 bg-slate-950 border border-emerald-800/60 rounded-xl">
+                <div className="text-[10px] text-slate-400">300M Genesis Reserve Remaining:</div>
+                <div className="font-extrabold text-sm text-amber-400">{centralBankReserve.toLocaleString()} g₦</div>
               </div>
 
-              <button
-                onClick={() => {
-                  if (centralBankReserve < 1000000) return setLogMessage("🛑 Central Bank 300M Reserve is SOLD OUT! P2P Market only.");
-                  setCentralBankReserve((r) => r - 1000000);
-                  setStarterBalance((p) => p + 1000000);
-                  setLogMessage(`💳 Bought 1,000,000 g₦ (₦10k)! Central Bank Reserve decreased to ${(centralBankReserve - 1000000).toLocaleString()} g₦.`);
-                }}
-                className="w-full py-2.5 bg-amber-500 text-slate-950 font-extrabold rounded-xl"
-              >
-                ➕ Buy 1,000,000 g₦ (₦10,000) — Reduces Reserve
-              </button>
+              {[
+                { naira: 500, gameCash: 50000 },
+                { naira: 1000, gameCash: 100000 },
+                { naira: 5000, gameCash: 500000 },
+                { naira: 10000, gameCash: 1000000 },
+              ].map((tier, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    if (centralBankReserve < tier.gameCash) return setLogMessage("🛑 Central Bank Sold Out! Use P2P Market.");
+                    setCentralBankReserve((r) => r - tier.gameCash);
+                    setStarterBalance((p) => p + tier.gameCash);
+                    setLogMessage(`💳 Bought ${tier.gameCash.toLocaleString()} g₦ for ₦${tier.naira.toLocaleString()}! Reserve reduced.`);
+                  }}
+                  className="w-full p-2 bg-slate-950 border border-amber-600/60 hover:border-amber-400 rounded-xl flex justify-between font-bold"
+                >
+                  <span>Buy {tier.gameCash.toLocaleString()} g₦</span>
+                  <span className="text-amber-400">₦{tier.naira.toLocaleString()}</span>
+                </button>
+              ))}
 
               <button
                 onClick={() => {
-                  if (earnedBalance < 5000000) return setLogMessage("🔒 Minimum withdrawal is 5,000,000 g₦ (₦5,000) from your Withdrawable Wallet.");
-                  const payout = Math.floor(earnedBalance / 1000);
-                  setCentralBankReserve((r) => r + earnedBalance); // Returns to Central Bank pool!
+                  if (earnedBalance < 5000000) return setLogMessage("🔒 Minimum cashout is 5,000,000 g₦ (₦5,000) from Earned Wallet!");
+                  const naira = Math.floor(earnedBalance / 1000);
+                  setCentralBankReserve((r) => r + earnedBalance);
                   setEarnedBalance(0);
-                  setLogMessage(`🏦 Withdrew ₦${payout.toLocaleString()} to your Bank! ${earnedBalance.toLocaleString()} g₦ returned to Central Bank Reserve.`);
+                  setLogMessage(`🏦 Withdrew ₦${naira.toLocaleString()} to your Bank Account!`);
                 }}
                 className="w-full py-2.5 bg-emerald-600 text-white font-extrabold rounded-xl"
               >
-                💸 Cash Out Earned Balance (Min 5M g₦)
+                💸 Withdraw Earned Cash (Min 5M g₦)
               </button>
+            </div>
+
+            {/* BANK LOANS & P2P EXCHANGE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h2 className="font-bold text-sm text-cyan-400">💳 Bank Loans & P2P Exchange</h2>
+              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
+                Active Bank Loan Debt: <strong className="text-rose-400">{bankLoanDebt.toLocaleString()} g₦</strong>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    if (bankLoanDebt > 0) return setLogMessage("❌ Repay your existing loan first!");
+                    setBankLoanDebt(220000);
+                    setStarterBalance((p) => p + 200000);
+                    setLogMessage("🏦 Borrowed 200,000 g₦ Bank Loan (Repay 220,000 g₦ with 10% interest)!");
+                  }}
+                  className="py-2 bg-indigo-600 text-white font-bold rounded-lg"
+                >
+                  Borrow 200k g₦
+                </button>
+                <button
+                  disabled={bankLoanDebt === 0}
+                  onClick={() => {
+                    if (spendMoney(bankLoanDebt)) {
+                      setBankLoanDebt(0);
+                      setCitizenPoints((p) => p + 15);
+                      setLogMessage("✅ Repaid Bank Loan in full! Credit score boosted.");
+                    }
+                  }}
+                  className="py-2 bg-emerald-600 text-white font-bold rounded-lg disabled:opacity-40"
+                >
+                  Repay Loan
+                </button>
+              </div>
+
+              <div className="border-t border-slate-800 pt-2 space-y-2">
+                <div className="font-bold text-amber-300">🤝 P2P Player Currency Market (10% Tax)</div>
+                <p className="text-[10px] text-slate-400">
+                  Sell excess Earned g₦ to other players or buy when Central Bank closes!
+                </p>
+                <button
+                  onClick={() => {
+                    if (earnedBalance < 100000) return setLogMessage("❌ Need at least 100,000 Earned g₦ to list on P2P!");
+                    setEarnedBalance((e) => e - 100000);
+                    setStarterBalance((s) => s + 110000);
+                    setLogMessage("🤝 Sold 100,000 Earned g₦ on P2P Market (10% regulated spread applied)!");
+                  }}
+                  className="w-full py-2 bg-slate-950 border border-cyan-600 text-cyan-300 font-bold rounded-xl"
+                >
+                  List 100,000 Earned g₦ on P2P Market
+                </button>
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {showTvModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-4">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-rose-400 text-sm">LagosFlix Smart TV</h3>
-              <button onClick={() => setShowTvModal(false)} className="text-xs bg-slate-800 px-3 py-1 rounded-lg text-white">Close</button>
-            </div>
-            <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-              <iframe className="w-full h-full" src="https://www.youtube.com/embed/jfKfPfyJRdk" title="LagosFlix" allowFullScreen />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6-TAB BOTTOM NAV */}
+      {/* 7-TAB BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-2 py-2 z-40">
-        <div className="max-w-3xl mx-auto grid grid-cols-6 gap-1">
+        <div className="max-w-4xl mx-auto grid grid-cols-7 gap-1">
           {[
-            { id: "room", label: "2D Room", icon: <PaintBucket className="w-4 h-4" /> },
-            { id: "hustle", label: "Jobs/Gigs", icon: <Briefcase className="w-4 h-4" /> },
+            { id: "home", label: "My Home", icon: <Home className="w-4 h-4" /> },
+
+<Map className="w-4 h-4" />
+{ id: "city", label: "City Map", icon: },
+            { id: "jobs", label: "Jobs/Gigs", icon: <Briefcase className="w-4 h-4" /> },
             { id: "school", label: "School/BP", icon: <GraduationCap className="w-4 h-4" /> },
-            { id: "empire", label: "CAC/Cars", icon: <Building2 className="w-4 h-4" /> },
+            { id: "empire", label: "CAC/Estate", icon: <Building2 className="w-4 h-4" /> },
             { id: "politics", label: "Politics", icon: <Vote className="w-4 h-4" /> },
-            { id: "lifestyle", label: "Love/Bank", icon: <Landmark className="w-4 h-4" /> },
+            { id: "profile", label: "Profile/Bank", icon: <Award className="w-4 h-4" /> },
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id as any)}
-              className={`py-2 rounded-xl text-[11px] font-bold flex flex-col items-center gap-1 transition ${
+              className={`py-2 rounded-xl text-[10px] sm:text-[11px] font-bold flex flex-col items-center gap-1 transition ${
                 activeTab === t.id ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
               }`}
             >
