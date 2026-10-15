@@ -1,17 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { 
   Heart, Zap, Utensils, Sparkles, Tv, Home, Map,
   Briefcase, GraduationCap, Lock, Building2, 
   Clock, Award, Wrench, Fuel, Droplets, ZoomOut, ZoomIn, 
-  Send, Dumbbell, Stethoscope, Vote, MessageSquareQuote, Info, HelpCircle, UserCheck
+  Send, Dumbbell, Stethoscope, Vote, MessageSquareQuote,
+  Smartphone, ClipboardList, Sun, Sunset, Moon, Navigation, ShieldAlert
 } from "lucide-react";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 type AreaName = "Oshodi" | "Berger" | "Yaba" | "Surulere" | "Lekki";
 
@@ -23,13 +19,26 @@ const AREA_COORDS: Record<AreaName, number> = {
   Lekki: 6,
 };
 
-export default function LagosEmpireMasterEdition() {
+interface MapBuilding {
+  id: string;
+  roofColor: string;
+  icon: string;
+  name: string;
+  sub: string;
+  distKm: number; // Real street distance from Area Bus Stop / Home!
+}
+
+export default function LagosEmpireUltimateMapEngine() {
   // 1. ONBOARDING
   const [isCreated, setIsCreated] = useState(false);
   const [username, setUsername] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
+  const [activeTab, setActiveTab] = useState<"map" | "profile">("map");
+  const [logMessage, setLogMessage] = useState(
+    "Welcome to Lagos Empire! Click any building on the map to see its travel distance and fare."
+  );
 
-  // 2. 15-MINUTE RUNNING CLOCK, WEATHER & 8-WEEK RENT EVICTION ENGINE
+  // 2. 15-MINUTE CLOCK, DYNAMIC DAY/AFTERNOON-YELLOW/NIGHT THEME & TRAFFIC
   const [gameHour, setGameHour] = useState(8);
   const [gameMinute, setGameMinute] = useState(0);
   const [gameDay, setGameDay] = useState(1);
@@ -37,193 +46,61 @@ export default function LagosEmpireMasterEdition() {
   const [weeksUntilRentDue, setWeeksUntilRentDue] = useState(8);
   const [weather, setWeather] = useState("Sunny 32°C");
 
-  // 3. CENTRAL BANK 300M RESERVE, HOSPITAL LOAN & DUAL WALLETS (100M c₦ = ₦5,000!)
+  // Time-of-Day Visual Theme & Rush Hour Traffic ("Go-Slow")
+  const timeOfDayPhase: "Daylight" | "Afternoon_Sunset" | "Night" =
+    gameHour >= 6 && gameHour < 15
+      ? "Daylight"
+      : gameHour >= 15 && gameHour < 19
+      ? "Afternoon_Sunset"
+      : "Night";
+
+  const isRushHourTraffic = (gameHour >= 7 && gameHour <= 9) || (gameHour >= 16 && gameHour <= 19);
+
+  // 3. CENTRAL BANK 300M RESERVE & DUAL WALLETS (g₦ vs c₦ "Coming Soon" Accumulation!)
   const [centralBankReserve, setCentralBankReserve] = useState(300000000);
-  const [starterBalance, setStarterBalance] = useState(50000); // g₦ (Starter/Deposit)
-  const [earnedBalance, setEarnedBalance] = useState(0);       // c₦ (100,000,000 c₦ = ₦5,000!)
+  const [starterBalance, setStarterBalance] = useState(50000); // g₦ (Working Capital)
+  const [earnedBalance, setEarnedBalance] = useState(0);       // c₦ (Earned Cashout Naira - Accumulation Phase)
   const [hospitalLoanDebt, setHospitalLoanDebt] = useState(0);
-  const [hospitalImmunityDaysLeft, setHospitalImmunityDaysLeft] = useState(0); // 2-Day Protection after Hospital!
+  const [hospitalShieldHoursLeft, setHospitalShieldHoursLeft] = useState(0); // 48h Shield (drains faster if doing heavy labor!)
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
+  const [convertCnInput, setConvertCnInput] = useState("50000");
 
-  // 4. EXACT PLAYER POSITION, AREA & SURVIVAL STATS
+  // 4. STRICT MAP POSITION, TRANSIT MODAL & FOG-OF-WAR
   const [area, setArea] = useState<AreaName>("Oshodi");
-  // EXACT POSITION TRACKER: Shows whether player is At Home, Inside Hospital, At Market, At Party Secretariat, etc.
-  const [exactPosition, setExactPosition] = useState<string>("Inside My Home (Oshodi)");
-  const [isAtHome, setIsAtHome] = useState<boolean>(true);
+  const [currentBuildingId, setCurrentBuildingId] = useState<string>("My_Home");
+  const [exactPosition, setExactPosition] = useState<string>("🏠 Inside My Home (Oshodi)");
   const [isMapZoomedOut, setIsMapZoomedOut] = useState(false);
-  const [enteredBuildingId, setEnteredBuildingId] = useState<string>("None");
-  const [activeGuideTip, setActiveGuideTip] = useState<string>(
-    "💡 GUIDE: Keep Belly & Energy above 20% so your Critical Bar stays safe! Click [?] on any meter to see how to boost it."
-  );
 
+  // When a player clicks a building on the map, DO NOT teleport them inside! Open Transit Ticket Modal first:
+  const [pendingTargetBuilding, setPendingTargetBuilding] = useState<MapBuilding | null>(null);
+  const [inTransitLabel, setInTransitLabel] = useState<string>("");
+
+  // Smartphone ownership (if bought at Yaba Tech Plaza, unlocks remote Vacancy Board viewing!)
+  const [phoneOwned, setPhoneOwned] = useState<"None" | "Torchlight_Phone" | "Smartphone">("None");
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+
+  // Market Price Bargaining Discount State
+  const [bargainDiscountPct, setBargainDiscountPct] = useState(0); // 0%, 10%, or 15% off from bargaining!
+
+  // 5. SURVIVAL STATS & CLASSIC [?] INDICATOR GUIDE
   const [health, setHealth] = useState(90);
   const [energy, setEnergy] = useState(60);
   const [hunger, setHunger] = useState(80);
   const [weight, setWeight] = useState(68.0);
   const [steeze, setSteeze] = useState(5);
   const [citizenPoints, setCitizenPoints] = useState(15);
+  const [activeGuideTip, setActiveGuideTip] = useState<string>(
+    "💡 MAP RULE: Clicking any building shows its distance (km) & transport fare first. You must travel there before entering!"
+  );
 
-  // 5. CERTIFIED HOUSE MAID (5-MINUTE AUTOMATION SYSTEM!)
+  // 6. DOMESTIC STAFFING AGENCY & HOUSE MAID (485K PLACEMENT + 320K/WK UPKEEP + KG GAS)
   const [hasHiredMaid, setHasHiredMaid] = useState(false);
-  const [maidSatisfaction, setMaidSatisfaction] = useState(100);
-  const [maidTimerSecs, setMaidTimerSecs] = useState(300); // 5 minutes (300s) auto-care cycle!
+  const [maidWeeklyFoodLeft, setMaidWeeklyFoodLeft] = useState(0); // Servings in weekly bulk basket
+  const [maidTimerSecs, setMaidTimerSecs] = useState(300);         // 5-Minute (300s) auto-care cycle
+  const [agencyMaidVacanciesCount, setAgencyMaidVacanciesCount] = useState(2); // Listed by the Agency!
 
-  // 6. GYM ENROLLMENT PLANS
-  const [gymPlan, setGymPlan] = useState<"None" | "1_Hour_Pass" | "Weekly_Plan" | "Monthly_VIP">("None");
-
-  // 7. TIMERS ENGINE
-  const [timers, setTimers] = useState<Record<string, number>>({});
-  const startCooldown = (key: string, seconds: number) => {
-    setTimers((prev) => ({ ...prev, [key]: seconds }));
-  };
-
-  // HELPER: Receive Earned c₦ (Auto-deducts Hospital Loan only from NEW earnings, never from empty account!)
-  const receiveEarnedMoney = (amount: number, sourceLabel: string) => {
-    if (hospitalLoanDebt > 0) {
-      const deduction = Math.min(hospitalLoanDebt, Math.floor(amount * 0.4));
-      const netPay = amount - deduction;
-      setHospitalLoanDebt((d) => d - deduction);
-      setEarnedBalance((e) => e + netPay);
-      setLogMessage(
-        `🏥 ${sourceLabel}: Earned +${amount.toLocaleString()} c₦ (-${deduction.toLocaleString()} c₦ auto-paid toward Hospital Loan).`
-      );
-    } else {
-      setEarnedBalance((e) => e + amount);
-      setLogMessage(`💰 ${sourceLabel}: +${amount.toLocaleString()} c₦ added to your Earned Cashout Wallet!`);
-    }
-  };
-
-  // MASTER CLOCK, 5-MIN MAID AUTOMATION & FIXED HOSPITAL EMERGENCY LOGIC
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // 1. Tick active cooldown timers
-      setTimers((prev) => {
-        const next: Record<string, number> = {};
-        for (const k in prev) {
-          if (prev[k] > 1) next[k] = prev[k] - 1;
-        }
-        return next;
-      });
-
-      // 2. Tick 5-Minute (300s) House Maid Automation!
-      if (hasHiredMaid && maidSatisfaction > 20) {
-        setMaidTimerSecs((prev) => {
-          if (prev <= 1) {
-            // Every 5 minutes, Maid delivers food & maintains Health, Energy & Belly automatically!
-            setHealth((h) => Math.max(h, 90));
-            setEnergy((e) => Math.max(e, 85));
-            setHunger((b) => Math.max(b, 90));
-            setMaidSatisfaction((s) => Math.max(0, s - 5));
-            setLogMessage("👩🏾‍🍳 MAID AUTOMATION (5-Min Cycle): Your House Maid delivered hot food & vitamins to your location! Health, Energy & Belly restored to 90%!");
-            return 300;
-          }
-          return prev - 1;
-        });
-      }
-
-      // 3. Advance 15-Minute Clock
-      setGameMinute((m) => {
-        if (m < 45) return m + 15;
-        setGameHour((h) => {
-          const nextH = h >= 23 ? 0 : h + 1;
-          if (nextH >= 20 || nextH <= 5) setWeather("Warm Night");
-          else if (nextH === 14 || nextH === 15) setWeather("Heavy Lagos Rain");
-          else if (nextH >= 6 && nextH <= 10) setWeather("Harmattan Haze");
-          else setWeather("Sunny 32°C");
-
-          if (h >= 23) {
-            setGameDay((d) => {
-              const nd = d + 1;
-              // Tick 2-Day Hospital Immunity Shield
-              setHospitalImmunityDaysLeft((imm) => Math.max(0, imm - 1));
-
-              // Party Presence Rule: Only counts if player is physically inside Party Secretariat!
-              if (exactPosition.includes("Party Secretariat")) {
-                setPartyDaysAttended((pd) => pd + 1);
-              }
-
-              if (nd % 7 === 0) {
-                setGameWeek((w) => w + 1);
-                setWeeksUntilRentDue((r) => {
-                  if (ownershipMode === "Bought_Owned") return 999;
-                  const nextR = r - 1;
-                  if (nextR <= 0) {
-                    setShelterType("Evicted — Sleeping Under Bridge");
-                    setParkingSlots(0);
-                    setIsAtHome(false);
-                    setExactPosition(`Under the Bridge (${area})`);
-                    setLogMessage("🚨 RENT OVERDUE! You have been evicted to Under the Bridge!");
-                    return 0;
-                  }
-                  return nextR;
-                });
-
-                setOwnedProperties((props) =>
-                  props.map((p) => ({
-                    ...p,
-                    weeksLeftToCollect: p.isListedWithAgent ? Math.max(0, p.weeksLeftToCollect - 1) : 8,
-                  }))
-                );
-              }
-              return nd;
-            });
-            setHustlesDoneToday(0);
-            setWorkedOfficeToday(false);
-          }
-          return nextH;
-        });
-
-        // 4. FIXED STAT DECAY & HOSPITAL ADMISSION (FULL 100% RESTORE + 2-DAY IMMUNITY + POSITION CHANGE!)
-        setHunger((prevHunger) => {
-          // If player has 2-day hospital discharge protection, decay is tiny!
-          const decayRate = hospitalImmunityDaysLeft > 0 ? 1 : 3;
-          const nextHunger = Math.max(0, prevHunger - decayRate);
-
-          if (nextHunger === 0 && hospitalImmunityDaysLeft === 0) {
-            setHealth((prevHp) => {
-              const nextHp = Math.max(0, prevHp - 8);
-              if (nextHp <= 15) {
-                // RUSH TO HOSPITAL: FILL ALL 3 BARS TO 100%, MOVE POSITION TO HOSPITAL, GRANT 2-DAY IMMUNITY!
-                setHunger(100);
-                setEnergy(100);
-                setHospitalImmunityDaysLeft(2);
-                setIsAtHome(false);
-                setEnteredBuildingId("Hospital");
-                setExactPosition(`🏥 Inside ${area} General Hospital Ward (Must Commute Home)`);
-                setHospitalLoanDebt((debt) => debt + 100000);
-                setLogMessage(
-                  `🚑 CRITICAL COLLAPSE! Rushed to ${area} Hospital! Health, Energy & Belly restored to 100% + 2-Day Medical Shield active! You are now at the Hospital (take transport to return home).`
-                );
-                return 100;
-              }
-              return nextHp;
-            });
-          }
-          return nextHunger;
-        });
-
-        setEnergy((prevE) => {
-          const decayE = hospitalImmunityDaysLeft > 0 ? 1 : 2;
-          return Math.max(10, prevE - decayE);
-        });
-
-        return 0;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [hasHiredMaid, maidSatisfaction, hospitalImmunityDaysLeft, exactPosition, area]);
-
-  const formatSecs = (s?: number) => {
-    if (!s || s <= 0) return "0s";
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    if (h > 0) return `${h}h ${m}m ${sec}s`;
-    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
-  };
-
-  // 8. HOME, FURNITURE & LANDLORD STATE
+  // 7. HOME, KG COOKING GAS, RAW FOOD & LANDLORD STATE
   const [shelterType, setShelterType] = useState("Basic Single Room (120k/8Wks)");
   const [shelterArea, setShelterArea] = useState<AreaName>("Oshodi");
   const [ownershipMode, setOwnershipMode] = useState<"Rented" | "Bought_Owned">("Rented");
@@ -235,8 +112,10 @@ export default function LagosEmpireMasterEdition() {
   const [tvTier, setTvTier] = useState("None");
   const [hasLagosFlix, setHasLagosFlix] = useState(false);
   const [showTvModal, setShowTvModal] = useState(false);
+
+  // Cooking Gas in Real Kilograms (kg)!
   const [hasCookingStove, setHasCookingStove] = useState(false);
-  const [gasLevel, setGasLevel] = useState(0);
+  const [gasKg, setGasKg] = useState<number>(0.0); // Measured in kg (burns 0.4kg per meal!)
   const [rawFoodServings, setRawFoodServings] = useState(0);
 
   const [ownedProperties, setOwnedProperties] = useState<{
@@ -251,7 +130,7 @@ export default function LagosEmpireMasterEdition() {
   }[]>([]);
   const [customRoomRentInput, setCustomRoomRentInput] = useState("250000");
 
-  // 9. DRIVING LICENSE (75,000 g₦) & CARS (HIDDEN UNTIL BOUGHT)
+  // 8. DRIVING SCHOOL (75K LICENSE) & CARS (HIDDEN UNTIL BOUGHT)
   const [hasDriversLicense, setHasDriversLicense] = useState(false);
   const [drivingLessonsDone, setDrivingLessonsDone] = useState(0);
   const [carsOwned, setCarsOwned] = useState<string[]>([]);
@@ -260,8 +139,7 @@ export default function LagosEmpireMasterEdition() {
   const [carRadiatorWater, setCarRadiatorWater] = useState(100);
   const [carEngineHealth, setCarEngineHealth] = useState(100);
 
-  // 10. SEPARATED EDUCATION BUILDINGS STATE
-  const [schoolBuildingTab, setSchoolBuildingTab] = useState<"poly" | "uni" | "blueprints" | "pro_certs">("poly");
+  // 9. SEPARATED SCHOOLS, ACADEMIC MAJORS, HARVARD/OXFORD ABROAD & HIGHER-PRICED CERTS
   const [completedDegrees, setCompletedDegrees] = useState<string[]>([]);
   const [professionalCerts, setProfessionalCerts] = useState<string[]>([]);
   const [specialistCerts, setSpecialistCerts] = useState<string[]>([]);
@@ -270,30 +148,50 @@ export default function LagosEmpireMasterEdition() {
   const [enrolledProgram, setEnrolledProgram] = useState<{
     id: string;
     name: string;
+    major: string;
     totalClasses: number;
     completedClasses: number;
     energyPerLecture: number;
     timerSeconds: number;
   } | null>(null);
-  const [cvScore, setCvScore] = useState(0);
-  const [outfit, setOutfit] = useState("Singlet & Bathroom Slippers");
-  const [hasCorporateSuit, setHasCorporateSuit] = useState(false);
+  const [abroadVisaStatus, setAbroadVisaStatus] = useState<"None" | "Processing" | "Approved">("None");
 
-  // 11. SEPARATED JOB BUILDINGS STATE
-  const [jobBuildingTab, setJobBuildingTab] = useState<"street" | "specialist" | "corporate" | "social_gigs">("street");
-  const [hustlesDoneToday, setHustlesDoneToday] = useState(0);
-  const [employedJob, setEmployedJob] = useState<{
-    title: string;
-    company: string;
+  // 10. LIVE CONSTRUCTION SITES (MIN/MAX BRICKLAYERS, 1-SHIFT PER PLAYER & TIME REDUCTION!)
+  const [activeConstructionSites, setActiveConstructionSites] = useState<{
+    id: string;
+    projectName: string;
+    ownerName: string;
     area: AreaName;
-    payPer3Days: number;
-  } | null>(null);
-  const [daysWorkedThisCycle, setDaysWorkedThisCycle] = useState(0);
-  const [workedOfficeToday, setWorkedOfficeToday] = useState(false);
-  const [gigProofInputs, setGigProofInputs] = useState<Record<string, string>>({});
+    type: "Food" | "Agency" | "Arch_Firm" | "House";
+    timeRemainingSecs: number;
+    minBricklayers: number;
+    maxBricklayers: number;
+    currentBricklayers: number;
+    playerWorkedHere: boolean; // Prevents 1 person doing the same site twice!
+    payPerShiftCn: number;
+    maxStaff: number;
+    maxCust: number;
+    revPerHalfDay: number;
+  }[]>([
+    {
+      id: "site_lekki_1",
+      projectName: "Chief Balogun's 5-Bed Lekki Duplex",
+      ownerName: "Chief Balogun",
+      area: "Lekki",
+      type: "House",
+      timeRemainingSecs: 7200,
+      minBricklayers: 2,
+      maxBricklayers: 6,
+      currentBricklayers: 1,
+      playerWorkedHere: false,
+      payPerShiftCn: 12000,
+      maxStaff: 0,
+      maxCust: 0,
+      revPerHalfDay: 0,
+    },
+  ]);
 
-  // 12. KIOSKS, EATERIES & ARCHITECTURAL FIRMS
-  const [ownsBillboardAsset, setOwnsBillboardAsset] = useState(false);
+  // 11. ACTIVE BUSINESSES, POLITICS & COURTSHIP
   const [activeBusinesses, setActiveBusinesses] = useState<{
     name: string;
     type: "Food" | "Agency" | "Arch_Firm";
@@ -320,44 +218,325 @@ export default function LagosEmpireMasterEdition() {
     stars: string;
   }[]>([
     {
-      customer: "@tunde_oshodi",
-      bizName: "Lagos Food Guide",
-      comment: "Recruit Certified Rice, Soup & Malt chefs in your Eatery to trigger 5-star health & point reviews!",
-      healthBonus: 10,
-      pointsBonus: 5,
-      stars: "⭐⭐⭐",
+      customer: "@kemi_lekki",
+      bizName: "Lagos Culinary Guide",
+      comment: "Eateries with Certified Rice, Soup & Malt specialists restore +45% Health & earn 5-star payouts!",
+      healthBonus: 45,
+      pointsBonus: 25,
+      stars: "⭐⭐⭐⭐⭐",
     },
   ]);
 
-  // 13. POLITICS (MUST PHYSICALLY BE AT PARTY SECRETARIAT FOR 3 DAYS!) & COURTSHIP
+  const [hustlesDoneToday, setHustlesDoneToday] = useState(0);
   const [partyStatus, setPartyStatus] = useState<"None" | "Member_JPC" | "Member_JSTD">("None");
-  const [partyDaysAttended, setPartyDaysAttended] = useState<number>(0); // Requires 3 Days present at Secretariat!
+  const [partyDaysAttended, setPartyDaysAttended] = useState<number>(0);
   const [nominationStatus, setNominationStatus] = useState<"None" | "Submitted_Verified">("None");
-  const [hiredAgenciesForPoster, setHiredAgenciesForPoster] = useState<string[]>([]);
-  const [cityBillboardText, setCityBillboardText] = useState("BILLBOARD AVAILABLE — Agency & Billboard Owners Only!");
-  const [hasVoted, setHasVoted] = useState(false);
-
   const [maritalStatus, setMaritalStatus] = useState<"Single" | "Courting" | "Married">("Single");
   const [partnerName, setPartnerName] = useState("None");
-  const [partnerRequirement, setPartnerRequirement] = useState("Must own a TV & Cushion Sofa");
   const [datesCompleted, setDatesCompleted] = useState(0);
-  const [relationshipBond, setRelationshipBond] = useState(0);
+  const [gymPlan, setGymPlan] = useState<"None" | "1_Hour_Pass" | "Weekly_Plan" | "Monthly_VIP">("None");
 
-  const [activeTab, setActiveTab] = useState<"map" | "home" | "jobs" | "school" | "empire" | "politics" | "profile">("map");
-  const [logMessage, setLogMessage] = useState(
-    "Welcome! Check your Exact Position in the top bar. Click any [?] button on the meters to see how to maintain your stats, or hire a House Maid for 5-minute automation!"
-  );
+  // 12. TIMERS ENGINE
+  const [timers, setTimers] = useState<Record<string, number>>({});
+  const startCooldown = (key: string, seconds: number) => {
+    setTimers((prev) => ({ ...prev, [key]: seconds }));
+  };
 
   const maxEnergyCap = bedTier === "Bare_Floor" ? 60 : bedTier === "Foam_Mattress" ? 85 : 100;
 
-  // CRITICAL CONDITION SCORE (0% = Safe, 100% = Imminent Hospital Collapse!)
-  const criticalDangerPct = Math.min(
-    100,
-    Math.max(0, Math.round((100 - health) * 0.6 + (100 - hunger) * 0.4))
-  );
+  // HELPER: Receive Earned c₦ (Auto-deducts Hospital Loan if active)
+  const receiveEarnedMoney = (amount: number, sourceLabel: string) => {
+    if (hospitalLoanDebt > 0) {
+      const deduction = Math.min(hospitalLoanDebt, Math.floor(amount * 0.4));
+      const netPay = amount - deduction;
+      setHospitalLoanDebt((d) => d - deduction);
+      setEarnedBalance((e) => e + netPay);
+      setLogMessage(
+        `🏥 ${sourceLabel}: Earned +${amount.toLocaleString()} c₦ (-${deduction.toLocaleString()} c₦ auto-paid toward Hospital Loan).`
+      );
+    } else {
+      setEarnedBalance((e) => e + amount);
+      setLogMessage(`💰 ${sourceLabel}: +${amount.toLocaleString()} c₦ added to your Earned Cashout Wallet!`);
+    }
+  };
 
-  // ACADEMIC PROGRESS BAR PERCENTAGE FOR DOSSIER
-  const academicProgressPct = Math.min(100, completedDegrees.length * 20 + professionalCerts.length * 10);
+  // HELPER: Spend Money (Uses g₦ Starter/Deposit FIRST, then c₦ Earned Balance, applying any Market Bargain Discount!)
+  const spendMoney = (rawCost: number, applyBargain = false): boolean => {
+    const cost = applyBargain && bargainDiscountPct > 0 ? Math.round(rawCost * (1 - bargainDiscountPct / 100)) : rawCost;
+    const total = starterBalance + earnedBalance;
+    if (total < cost) {
+      setLogMessage(`❌ Insufficient funds! You need ${cost.toLocaleString()} g₦ / c₦.`);
+      return false;
+    }
+    if (starterBalance >= cost) {
+      setStarterBalance((prev) => prev - cost);
+    } else {
+      const rem = cost - starterBalance;
+      setStarterBalance(0);
+      setEarnedBalance((prev) => prev - rem);
+    }
+    if (applyBargain && bargainDiscountPct > 0) {
+      setBargainDiscountPct(0); // Reset one-time bargain discount after purchase
+    }
+    return true;
+  };
+
+  // MASTER CLOCK, 5-MIN MAID (CONSUMES 0.4KG GAS & WEEKLY FOOD!), CONSTRUCTION TIMERS & HOSPITAL LOGIC
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 1. Tick active cooldown timers
+      setTimers((prev) => {
+        const next: Record<string, number> = {};
+        for (const k in prev) {
+          if (prev[k] > 1) next[k] = prev[k] - 1;
+        }
+        return next;
+      });
+
+      // 2. Tick Active Construction Sites
+      setActiveConstructionSites((sites) =>
+        sites.map((s) => ({
+          ...s,
+          timeRemainingSecs: Math.max(0, s.timeRemainingSecs - 1),
+        }))
+      );
+
+      // 3. Tick 5-Minute (300s) House Maid Automation (Requires Weekly Food Stock & >= 0.4kg Cooking Gas!)
+      if (hasHiredMaid) {
+        setMaidTimerSecs((prev) => {
+          if (prev <= 1) {
+            if (maidWeeklyFoodLeft > 0 && gasKg >= 0.4) {
+              setMaidWeeklyFoodLeft((f) => f - 1);
+              setGasKg((g) => Number(Math.max(0, g - 0.4).toFixed(1)));
+              setHealth((h) => Math.max(h, 92));
+              setEnergy((e) => Math.max(e, maxEnergyCap));
+              setHunger((b) => Math.max(b, 92));
+              setLogMessage(
+                "👩🏾‍🍳 MAID AUTO-DELIVERY (5m Cycle): Your House Maid cooked with 0.4kg Gas and delivered a fresh meal! Health, Energy & Belly restored!"
+              );
+            } else {
+              setLogMessage(
+                "⚠️ MAID ALERT: Madam/Oga, our Weekly Food Basket or Cooking Gas (kg) is empty! Visit Oshodi Market or Domestic Agency to restock!"
+              );
+            }
+            return 300;
+          }
+          return prev - 1;
+        });
+      }
+
+      // 4. Advance 15-Minute Clock
+      setGameMinute((m) => {
+        if (m < 45) return m + 15;
+        setGameHour((h) => {
+          const nextH = h >= 23 ? 0 : h + 1;
+          if (nextH >= 20 || nextH <= 5) setWeather("Warm Night");
+          else if (nextH === 14 || nextH === 15) setWeather("Heavy Lagos Rain");
+          else if (nextH >= 6 && nextH <= 10) setWeather("Harmattan Haze");
+          else setWeather("Sunny 32°C");
+
+          // Tick 48-Hour Hospital Shield Countdown
+          setHospitalShieldHoursLeft((sh) => Math.max(0, sh - 1));
+
+          if (h >= 23) {
+            setGameDay((d) => {
+              const nd = d + 1;
+              if (currentBuildingId === "Party_Secretariat") {
+                setPartyDaysAttended((pd) => pd + 1);
+              }
+              if (nd % 7 === 0) {
+                setGameWeek((w) => w + 1);
+                setWeeksUntilRentDue((r) => {
+                  if (ownershipMode === "Bought_Owned") return 999;
+                  const nextR = r - 1;
+                  if (nextR <= 0) {
+                    setShelterType("Evicted — Sleeping Under Bridge");
+                    setParkingSlots(0);
+                    setCurrentBuildingId("Under_Bridge");
+                    setExactPosition(`🚨 Evicted — Under the Bridge (${area})`);
+                    setLogMessage("🚨 RENT OVERDUE! Your landlord evicted you to Under the Bridge!");
+                    return 0;
+                  }
+                  return nextR;
+                });
+
+                setOwnedProperties((props) =>
+                  props.map((p) => ({
+                    ...p,
+                    weeksLeftToCollect: p.isListedWithAgent ? Math.max(0, p.weeksLeftToCollect - 1) : 8,
+                  }))
+                );
+              }
+              return nd;
+            });
+            setHustlesDoneToday(0);
+          }
+          return nextH;
+        });
+
+        // 5. Stat Decay & Hospital Emergency Check
+        setHunger((prevHunger) => {
+          const decayRate = hospitalShieldHoursLeft > 0 ? 1 : 3;
+          const nextHunger = Math.max(0, prevHunger - decayRate);
+
+          if (nextHunger === 0 && hospitalShieldHoursLeft === 0) {
+            setHealth((prevHp) => {
+              const nextHp = Math.max(0, prevHp - 8);
+              if (nextHp <= 15) {
+                setHunger(100);
+                setEnergy(maxEnergyCap);
+                setHospitalShieldHoursLeft(48); // 48-Hour (2-Day) Shield!
+                setCurrentBuildingId("Hospital");
+                setExactPosition(`🏥 Admitted Inside ${area} General Hospital Ward`);
+                setHospitalLoanDebt((debt) => debt + 100000);
+                startCooldown("hospital_bed", 60);
+                setLogMessage(
+                  `🚑 CRITICAL COLLAPSE! Rushed to ${area} Hospital! Health, Energy & Belly restored to 100% + 48h Medical Shield active! You are now inside the Hospital.`
+                );
+                return 100;
+              }
+              return nextHp;
+            });
+          }
+          return nextHunger;
+        });
+
+        setEnergy((prevE) => {
+          const decayE = hospitalShieldHoursLeft > 0 ? 1 : 2;
+          return Math.max(10, prevE - decayE);
+        });
+
+        return 0;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [hasHiredMaid, maidWeeklyFoodLeft, gasKg, hospitalShieldHoursLeft, currentBuildingId, area, maxEnergyCap, ownershipMode]);
+
+  const formatSecs = (s?: number) => {
+    if (!s || s <= 0) return "0s";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m ${sec}s`;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
+
+  // CONTEXT-AWARE LOW-STAT ADVISORY BANNER (CHECKS IF PLAYER ACTUALLY HAS STOVE & KG GAS AT HOME!)
+  const getSmartAdvisoryBanner = () => {
+    if (hunger <= 30) {
+      if (hasCookingStove && gasKg >= 0.4 && rawFoodServings > 0) {
+        return `⚠️ LOW BELLY ALERT (${hunger}%): You have a Gas Stove, ${gasKg}kg of Gas, and ${rawFoodServings} Raw Meals at home! Travel to My Home (${shelterArea}) to cook, or travel to ${area} Mama Put Eatery!`;
+      }
+      return `⚠️ LOW BELLY ALERT (${hunger}%): You have ${gasKg}kg Cooking Gas & ${rawFoodServings} Raw Meals at home! Travel 0.8 km to ${area} Public Eatery for hot food, or visit Oshodi Market to buy Gas (kg) & Yam/Rice!`;
+    }
+    if (energy <= 25) {
+      return `⚠️ LOW ENERGY ALERT (${energy}%): You are exhausted! Click 'My Home' on the Map to commute home and sleep, or eat at an Eatery!`;
+    }
+    if (health <= 40) {
+      return `🚑 LOW HEALTH WARNING (${health}%): Visit ${area} General Hospital on the Map before you collapse!`;
+    }
+    return null;
+  };
+
+  // SUB-MAP BUILDINGS FOR EACH AREA (WITH REAL STREET DISTANCE IN KM & SEPARATED SCHOOLS/AGENCIES!)
+  const subMapBuildings: Record<AreaName, MapBuilding[]> = {
+    Oshodi: [
+      { id: "Vacancy_Stand", roofColor: "bg-emerald-600", icon: "📋", name: "Street Vacancy & Notice Stand", sub: "Directions to All Live Jobs", distKm: 0.2 },
+      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Oshodi Mama Put & Eatery", sub: "6 Hot Nigerian Meals", distKm: 0.7 },
+      { id: "Gas_Kitchen_Shop", roofColor: "bg-teal-600", icon: "🔥", name: "Oshodi Market & Gas Depot", sub: "Buy Gas in kg & 8 Food Bundles", distKm: 1.2 },
+      { id: "Hospital", roofColor: "bg-rose-600", icon: "🏥", name: "Oshodi General Hospital", sub: "100% Restore + Nurse/Doctor Jobs", distKm: 1.5 },
+      { id: "Driving_School", roofColor: "bg-yellow-600", icon: "🪪", name: "FRSC & Driving Academy", sub: "Separate Driving School (75k)", distKm: 2.4 },
+      { id: "Mechanic_Shop", roofColor: "bg-purple-600", icon: "🔧", name: "Oshodi Mechanic Village", sub: "Fix Engine & Radiator Water", distKm: 3.8 },
+      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏘️", name: "Oshodi Estate Agent", sub: "Rent, Buy or Landlord Form", distKm: 2.1 },
+      { id: "Gym", roofColor: "bg-orange-600", icon: "🏋🏾‍♂️", name: "Oshodi Fitness Gym", sub: "1hr / Weekly / Monthly Plans", distKm: 1.9 },
+    ],
+    Berger: [
+      { id: "Vacancy_Stand", roofColor: "bg-emerald-600", icon: "📋", name: "Berger Vacancy Notice Stand", sub: "Directions to All Live Jobs", distKm: 0.2 },
+      { id: "Auto_Dealership", roofColor: "bg-emerald-700", icon: "🚗", name: "Berger Motor Fair (10 Cars)", sub: "Bargain & Buy Vehicles", distKm: 2.6 },
+      { id: "Filling_Station", roofColor: "bg-yellow-600", icon: "⛽", name: "NNPC Mega Filling Station", sub: "Petrol & Radiator Water", distKm: 1.1 },
+      { id: "Builder_Yard", roofColor: "bg-orange-600", icon: "🏗️", name: "Julius Berger Construction HQ", sub: "Step 3: Build Plans & Bricklayers", distKm: 3.4 },
+      { id: "Furniture_Shop", roofColor: "bg-indigo-600", icon: "🛏️", name: "Berger Mattress & Sofa Depot", sub: "Foam, King Bed & Sofa", distKm: 1.8 },
+      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Berger Highway Bukka", sub: "6 Hot Nigerian Meals", distKm: 0.8 },
+      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏘️", name: "Berger Estate Agent", sub: "Houses & Landlord Form", distKm: 2.0 },
+    ],
+    Yaba: [
+      { id: "Vacancy_Stand", roofColor: "bg-emerald-600", icon: "📋", name: "Yaba Vacancy Notice Stand", sub: "Directions to All Live Jobs", distKm: 0.2 },
+      { id: "Yaba_Polytechnic", roofColor: "bg-indigo-600", icon: "🏫", name: "Yaba Polytechnic Campus", sub: "ND, HND & Poly Lecturer Job", distKm: 1.6 },
+      { id: "Unilag_University", roofColor: "bg-blue-700", icon: "🎓", name: "University of Lagos Senate", sub: "B.Sc, M.Sc, Ph.D & Prof Job", distKm: 2.9 },
+      { id: "Architect_Firm", roofColor: "bg-cyan-600", icon: "📐", name: "Yaba Architectural Studio", sub: "Step 2: Paid Plan Stamping", distKm: 2.2 },
+      { id: "Electronics_Shop", roofColor: "bg-purple-600", icon: "📱", name: "Yaba Tech, Phones & TV Plaza", sub: "Buy Smartphones & 4 TV Tiers", distKm: 1.4 },
+      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Yaba Campus Jollof Spot", sub: "6 Hot Nigerian Meals", distKm: 0.6 },
+    ],
+    Surulere: [
+      { id: "Vacancy_Stand", roofColor: "bg-emerald-600", icon: "📋", name: "Surulere Vacancy Stand", sub: "Directions to All Live Jobs", distKm: 0.2 },
+      { id: "Business_Blueprint_School", roofColor: "bg-emerald-700", icon: "💼", name: "Lagos Business & Blueprint School", sub: "Separate Blueprint & ICAN/PMP School", distKm: 2.3 },
+      { id: "Domestic_Maid_Agency", roofColor: "bg-rose-600", icon: "👩🏾‍🍳", name: "Domestic Maid Staffing Agency", sub: "Hire Maid (485k) or Work as Maid", distKm: 1.7 },
+      { id: "Party_Secretariat", roofColor: "bg-green-700", icon: "🏛️", name: "JPC & JSTD Party Secretariat", sub: "Attend 3 Days & Buy Form", distKm: 2.8 },
+      { id: "Church_Lounge", roofColor: "bg-pink-600", icon: "🥂", name: "Surulere Mall, Church & Lounge", sub: "Meet Partners & 10 Dates", distKm: 1.5 },
+      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Surulere Kilimanjaro Eatery", sub: "6 Hot Nigerian Meals", distKm: 0.9 },
+    ],
+    Lekki: [
+      { id: "Vacancy_Stand", roofColor: "bg-emerald-600", icon: "📋", name: "Lekki Vacancy Notice Stand", sub: "Directions to All Live Jobs", distKm: 0.2 },
+      { id: "Foreign_Embassy", roofColor: "bg-indigo-700", icon: "✈️", name: "Foreign Embassy (Harvard/Oxford)", sub: "Visa & Study Abroad Universities", distKm: 3.5 },
+      { id: "Lands_Bureau", roofColor: "bg-amber-600", icon: "📜", name: "Lekki Lands Bureau & C-of-O", sub: "Buy Land & C-of-O", distKm: 2.7 },
+      { id: "Corporate_Towers", roofColor: "bg-cyan-700", icon: "🏢", name: "Victoria Island Corporate Towers", sub: "8 Executive & Specialist Jobs", distKm: 3.1 },
+      { id: "Agent_Office", roofColor: "bg-teal-600", icon: "🏰", name: "Lekki Luxury Estate Agent", sub: "Duplexes & Landlord Form", distKm: 1.9 },
+      { id: "Hospital", roofColor: "bg-rose-600", icon: "🏥", name: "Lekki Lagoon Hospital", sub: "100% Restore + Doctor/Nurse Jobs", distKm: 2.2 },
+    ],
+  };
+
+  // CALCULATE EXACT INTRA-STREET DISTANCE & FARE (RETURN HOME COSTS +25% MORE, RUSH HOUR ADDS +40% TIME!)
+  const getStreetTransitTicket = (target: MapBuilding, isGoingHome = false) => {
+    const returnMultiplier = isGoingHome ? 1.25 : 1.0; // Return home costs slightly more as requested!
+    const trafficTimeMult = isRushHourTraffic ? 1.5 : 1.0;
+    const km = target.distKm;
+
+    return {
+      km,
+      trekSecs: Math.max(8, Math.round(km * 22)),
+      trekEnergy: Math.min(45, Math.max(4, Math.round(km * 6))),
+      busCost: Math.round(km * 450 * returnMultiplier),
+      busSecs: Math.max(6, Math.round(km * 12 * trafficTimeMult)),
+      cabCost: Math.round(km * 1100 * returnMultiplier),
+      cabSecs: Math.max(4, Math.round(km * 6 * trafficTimeMult)),
+    };
+  };
+
+  // EXECUTE STREET TRANSIT WITH LIVE COUNTDOWN BEFORE UNLOCKING BUILDING INTERIOR!
+  const handleStartStreetTransit = (target: MapBuilding, mode: "trek" | "bus" | "cab" | "car", isGoingHome = false) => {
+    const ticket = getStreetTransitTicket(target, isGoingHome);
+
+    if (mode === "trek") {
+      if (energy < ticket.trekEnergy && ticket.km > 0.3) {
+        return setLogMessage("⚠️ Too exhausted to trek! Take a Bus, Cab, or Emergency Credit Ride.");
+      }
+      setEnergy((e) => Math.max(5, e - ticket.trekEnergy));
+      if (hospitalShieldHoursLeft > 0 && ticket.km > 1.0) {
+        setHospitalShieldHoursLeft((sh) => Math.max(0, sh - 4)); // Heavy trekking burns Hospital Shield!
+      }
+    } else if (mode === "bus") {
+      if (!spendMoney(ticket.busCost)) return;
+    } else if (mode === "cab") {
+      if (!spendMoney(ticket.cabCost)) return;
+    } else if (mode === "car") {
+      if (!hasDriversLicense) return setLogMessage("🚓 FRSC BLOCKED: Get your 75k Driver's License at Oshodi Driving Academy first!");
+      if (carPetrol < 5 || carRadiatorWater < 5) return setLogMessage("⚠️ Refill Petrol & Radiator Water first!");
+      setCarPetrol((p) => Math.max(0, p - 4));
+      setCarRadiatorWater((w) => Math.max(0, w - 3));
+    }
+
+    const waitSecs = mode === "trek" ? ticket.trekSecs : mode === "bus" ? ticket.busSecs : ticket.cabSecs;
+    setPendingTargetBuilding(null);
+    setInTransitLabel(`🚌 Traveling ${ticket.km} km to ${target.name} via ${mode.toUpperCase()}...`);
+    startCooldown("street_transit", waitSecs);
+
+    setTimeout(() => {
+      setInTransitLabel("");
+      setCurrentBuildingId(target.id);
+      setExactPosition(`${target.icon} Inside ${target.name} (${area})`);
+      setLogMessage(`✅ Arrived at ${target.name} (${ticket.km} km)! You are now inside the building.`);
+    }, waitSecs * 1000);
+  };
 
   const totalNetWorth =
     starterBalance +
@@ -377,91 +556,16 @@ export default function LagosEmpireMasterEdition() {
       ? "📈 Rising Hustler"
       : "🌱 Street Beginner";
 
-  const spendMoney = (cost: number): boolean => {
-    const total = starterBalance + earnedBalance;
-    if (total < cost) {
-      setLogMessage(`❌ Insufficient funds! You need ${cost.toLocaleString()} g₦ / c₦.`);
-      return false;
-    }
-    if (starterBalance >= cost) {
-      setStarterBalance((prev) => prev - cost);
-    } else {
-      const rem = cost - starterBalance;
-      setStarterBalance(0);
-      setEarnedBalance((prev) => prev - rem);
-    }
-    return true;
-  };
-
-  const getTransportCosts = (dest: AreaName) => {
-    const dist = Math.abs(AREA_COORDS[area] - AREA_COORDS[dest]) || 1;
-    const rainMult = weather === "Heavy Lagos Rain" ? 1.5 : 1;
-    return {
-      dist,
-      busCost: Math.round(1500 * dist * rainMult),
-      cabCost: Math.round(3500 * dist * rainMult),
-      trekEnergy: Math.min(50, 15 * dist),
-      trekHealthLoss: Math.min(10, 3 * dist),
-      petrolUsed: 8 * dist,
-      waterUsed: 6 * dist,
-      wearTear: 4 * dist,
-    };
-  };
-
-  // COMMUTE TO ANOTHER AREA OR RETURN BACK TO MY HOME!
-  const handleCommuteTo = (dest: AreaName, mode: "trek" | "bus" | "cab" | "car", goingHome = false) => {
-    const costs = getTransportCosts(dest);
-
-    if (mode === "trek") {
-      if (energy < 15) return setLogMessage("⚠️ Too weak to trek! Take a Bus or Cab.");
-      startCooldown("commute", 45);
-      setEnergy((e) => Math.max(5, e - costs.trekEnergy));
-      setArea(dest);
-    } else if (mode === "bus") {
-      if (!spendMoney(costs.busCost)) return;
-      startCooldown("commute", 30);
-      setArea(dest);
-    } else if (mode === "cab") {
-      if (!spendMoney(costs.cabCost)) return;
-      startCooldown("commute", 15);
-      setArea(dest);
-    } else if (mode === "car") {
-      if (!hasDriversLicense) return setLogMessage("🚓 FRSC BLOCKED: Get your Driver's License (75k) at Oshodi Driving School first!");
-      if (carPetrol < costs.petrolUsed || carRadiatorWater < costs.waterUsed || carEngineHealth < 30) {
-        return setLogMessage("⚠️ Check your Car Petrol, Radiator Water, or Engine Health before driving!");
-      }
-      startCooldown("commute", 10);
-      setCarPetrol((p) => Math.max(0, p - costs.petrolUsed));
-      setCarRadiatorWater((w) => Math.max(0, w - costs.waterUsed));
-      setCarEngineHealth((h) => Math.max(0, h - costs.wearTear));
-      setArea(dest);
-    }
-
-    if (goingHome && dest === shelterArea) {
-      setIsAtHome(true);
-      setEnteredBuildingId("None");
-      setExactPosition(`🏠 Inside My Home (${shelterType} in ${shelterArea})`);
-      setActiveTab("home");
-      setLogMessage(`🏠 Returned safely to your home in ${shelterArea} via ${mode.toUpperCase()}!`);
-    } else {
-      setIsAtHome(false);
-      setEnteredBuildingId("None");
-      setIsMapZoomedOut(false);
-      setExactPosition(`🚶🏾‍♂️ Standing on ${dest} Main Street (Outside Home)`);
-      setLogMessage(`🚌 Arrived at ${dest} Main Street via ${mode.toUpperCase()}!`);
-    }
-  };
-
   if (!isCreated) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border-2 border-emerald-500 rounded-2xl p-6 shadow-2xl">
           <div className="inline-block px-3 py-1 bg-emerald-500 text-slate-950 text-xs font-extrabold rounded-full mb-3">
-            LAGOS EMPIRE — 100M c₦ &amp; MAID AUTOMATION EDITION
+            LAGOS EMPIRE — STRICT MAP TRANSIT &amp; LIVE SITES EDITION
           </div>
-          <h1 className="text-2xl font-extrabold mb-2">Start From Scratch</h1>
+          <h1 className="text-2xl font-extrabold mb-2">Begin Your Lagos Life</h1>
           <p className="text-slate-400 text-sm mb-6">
-            Begin in Oshodi with 50,000 g₦. Track your exact building position, eat at public eateries or cook at home, hire a 5-minute automated House Maid, and build your net worth toward the 100,000,000 c₦ (= ₦5,000) cashout!
+            Start in Oshodi with 50,000 g₦. Trek 0.2 km to the Street Vacancy Stand, commute with real distance countdowns, work on live player construction sites, and accumulate c₦!
           </p>
           <input
             type="text"
@@ -504,57 +608,20 @@ export default function LagosEmpireMasterEdition() {
     RoyalBlue: "bg-blue-950/80 border-blue-700/50",
   };
 
-  // SUB-MAP BUILDINGS FOR EACH AREA (NOW INCLUDES PUBLIC EATERY & FULL MARKET!)
-  const subMapBuildings: Record<AreaName, { id: string; roofColor: string; icon: string; name: string; sub: string }[]> = {
-    Oshodi: [
-      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Oshodi Mama Put & Eatery", sub: "Buy 6 Standard Hot Meals" },
-      { id: "Gas_Kitchen_Shop", roofColor: "bg-emerald-600", icon: "🔥", name: "Oshodi Market & Gas Depot", sub: "3 Gas Sizes & 4 Food Bundles" },
-      { id: "Hospital", roofColor: "bg-rose-600", icon: "🏥", name: "Oshodi General Hospital", sub: "100% Full Restore + 2d Shield" },
-      { id: "Gym", roofColor: "bg-orange-600", icon: "🏋🏾‍♂️", name: "Oshodi Fitness Gym", sub: "1hr / Weekly / Monthly Plans" },
-      { id: "Driving_School", roofColor: "bg-yellow-600", icon: "🪪", name: "FRSC & Driving School", sub: "3 Lessons + 75k License" },
-      { id: "Mechanic_Shop", roofColor: "bg-purple-600", icon: "🔧", name: "Mechanic & Radiator Depot", sub: "Fix Engine & Water" },
-      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏘️", name: "Oshodi Estate Agent", sub: "Rent, Buy or Landlord Form" },
-      { id: "Church_Lounge", roofColor: "bg-indigo-600", icon: "⛪", name: "Oshodi Church & Park", sub: "Meet People & 10 Dates" },
-    ],
-    Berger: [
-      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Berger Highway Bukka", sub: "Buy 6 Standard Hot Meals" },
-      { id: "Auto_Dealership", roofColor: "bg-emerald-600", icon: "🚗", name: "Berger Motor Dealership", sub: "10 Car Models" },
-      { id: "Filling_Station", roofColor: "bg-yellow-600", icon: "⛽", name: "NNPC Mega Station", sub: "Petrol & Water" },
-      { id: "Builder_Yard", roofColor: "bg-orange-600", icon: "🏗️", name: "Julius Berger Builders", sub: "Construct Blueprints" },
-      { id: "Furniture_Shop", roofColor: "bg-indigo-600", icon: "🛏️", name: "Mattress & Sofa Showroom", sub: "Beds & Sofas" },
-      { id: "Hospital", roofColor: "bg-rose-600", icon: "🏥", name: "Berger Medical Clinic", sub: "100% Restore + 2d Shield" },
-      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏘️", name: "Berger Estate Agent", sub: "Houses & Landlord Form" },
-    ],
-    Yaba: [
-      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Yaba Unilag Jollof Spot", sub: "Buy 6 Standard Hot Meals" },
-      { id: "Academic_Campus", roofColor: "bg-indigo-600", icon: "🎓", name: "Yaba Education Street", sub: "Poly, Uni, Blueprints & Certs" },
-      { id: "Architect_Firm", roofColor: "bg-cyan-600", icon: "📐", name: "Yaba Architectural Firm", sub: "Stamp Blueprints" },
-      { id: "Electronics_Shop", roofColor: "bg-purple-600", icon: "📺", name: "Yaba TV & Tech Plaza", sub: "4 TV Tiers" },
-      { id: "Gym", roofColor: "bg-orange-600", icon: "🏋🏾‍♂️", name: "Yaba Fitness Center", sub: "1hr / Weekly / Monthly Plans" },
-      { id: "Agent_Office", roofColor: "bg-emerald-600", icon: "🏘️", name: "Yaba Estate Agent", sub: "Flats & Landlord Form" },
-    ],
-    Surulere: [
-      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Surulere Kilimanjaro Eatery", sub: "Buy 6 Standard Hot Meals" },
-      { id: "CAC_Office", roofColor: "bg-yellow-600", icon: "🏛️", name: "CAC Corporate Registry", sub: "Register Business" },
-      { id: "Church_Lounge", roofColor: "bg-rose-600", icon: "🥂", name: "Surulere Mall & Lounge", sub: "Chat & 10-Date Courtship" },
-      { id: "Gym", roofColor: "bg-orange-600", icon: "🏋🏾‍♂️", name: "National Stadium Gym", sub: "1hr / Weekly / Monthly Plans" },
-      { id: "Hospital", roofColor: "bg-emerald-600", icon: "🏥", name: "Surulere General Hospital", sub: "100% Restore + 2d Shield" },
-      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏘️", name: "Surulere Estate Agent", sub: "Duplexes & Landlord Form" },
-    ],
-    Lekki: [
-      { id: "Public_Eatery", roofColor: "bg-amber-600", icon: "🍛", name: "Lekki Continental Bistro", sub: "Buy 6 Standard Hot Meals" },
-      { id: "Lands_Bureau", roofColor: "bg-yellow-600", icon: "📜", name: "Lekki Lands & C-of-O", sub: "Buy Land & C-of-O" },
-      { id: "Agent_Office", roofColor: "bg-cyan-600", icon: "🏰", name: "Lekki Luxury Estate Agent", sub: "Duplexes & Landlord Form" },
-      { id: "Filling_Station", roofColor: "bg-emerald-600", icon: "⛽", name: "Lekki Express Fuel", sub: "Petrol & Water" },
-      { id: "Church_Lounge", roofColor: "bg-rose-600", icon: "⛪", name: "Lekki VIP Lounge & Church", sub: "High-Class Courtship" },
-      { id: "Hospital", roofColor: "bg-purple-600", icon: "🏥", name: "Lekki Lagoon Hospital", sub: "100% Restore + 2d Shield" },
-    ],
-  };
+  // DYNAMIC SKY & INTERFACE THEME BASED ON TIME OF DAY (DAYLIGHT WHITE/SKY vs AFTERNOON AMBER/YELLOW vs NIGHT DARK)
+  const themeWrapperClass =
+    timeOfDayPhase === "Daylight"
+      ? "bg-sky-100 text-slate-900"
+      : timeOfDayPhase === "Afternoon_Sunset"
+      ? "bg-amber-100 text-slate-900"
+      : "bg-slate-950 text-slate-100";
+
+  const advisoryText = getSmartAdvisoryBanner();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-28">
-      {/* TOP BAR WITH EXACT PLAYER POSITION TRACKING & 100M c₦ = ₦5,000 */}
-      <header className="bg-slate-900/95 backdrop-blur border-b border-slate-800 sticky top-0 z-30 px-4 py-2.5">
+    <div className={`min-h-screen pb-28 transition-colors duration-700 ${themeWrapperClass}`}>
+      {/* TOP BAR */}
+      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 px-4 py-2.5 shadow-lg">
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center text-xl">
@@ -563,39 +630,54 @@ export default function LagosEmpireMasterEdition() {
             <div>
               <div className="font-bold text-sm flex flex-wrap items-center gap-1.5">
                 {username}
-                <span className="text-[11px] px-2 py-0.5 bg-amber-500 text-slate-950 font-extrabold rounded-full flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Wk {gameWeek} • Day {gameDay} • {String(gameHour).padStart(2, "0")}:{String(gameMinute).padStart(2, "0")}
+                {/* DYNAMIC TIME OF DAY BADGE */}
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 font-extrabold rounded-full flex items-center gap-1 ${
+                    timeOfDayPhase === "Daylight"
+                      ? "bg-sky-400 text-slate-950"
+                      : timeOfDayPhase === "Afternoon_Sunset"
+                      ? "bg-amber-400 text-slate-950"
+                      : "bg-indigo-950 text-indigo-200 border border-indigo-500"
+                  }`}
+                >
+                  {timeOfDayPhase === "Daylight" ? <Sun className="w-3 h-3" /> : timeOfDayPhase === "Afternoon_Sunset" ? <Sunset className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+                  Wk {gameWeek} • Day {gameDay} • {String(gameHour).padStart(2, "0")}:{String(gameMinute).padStart(2, "0")} ({timeOfDayPhase.replace("_", " ")})
                 </span>
-                <span className="text-[11px] px-2 py-0.5 bg-slate-800 text-cyan-300 rounded-full">{weather}</span>
-                {hospitalImmunityDaysLeft > 0 && (
-                  <span className="text-[11px] px-2 py-0.5 bg-emerald-600 text-white font-extrabold rounded-full">
-                    🛡️ Hospital Shield: {hospitalImmunityDaysLeft}d
+
+                {isRushHourTraffic && (
+                  <span className="text-[10px] px-2 py-0.5 bg-red-600 text-white font-bold rounded-full">
+                    🚦 Go-Slow Traffic (+50% Bus/Cab Time)
                   </span>
                 )}
-                {hospitalLoanDebt > 0 && (
-                  <span className="text-[11px] px-2 py-0.5 bg-red-600 text-white font-extrabold rounded-full">
-                    🚑 Hospital Debt: -{hospitalLoanDebt.toLocaleString()} c₦
+                {hospitalShieldHoursLeft > 0 && (
+                  <span className="text-[11px] px-2 py-0.5 bg-emerald-600 text-white font-extrabold rounded-full">
+                    🛡️ Hospital Shield: {hospitalShieldHoursLeft}h Left
                   </span>
                 )}
               </div>
-              {/* EXACT PLAYER POSITION DISPLAY */}
               <div className="text-xs text-slate-300 flex flex-wrap items-center gap-2 mt-0.5">
-                <span className="text-amber-400 font-extrabold">📍 Exact Position: {exactPosition}</span>
-                • <span className={isAtHome ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                  {isAtHome ? "✓ At Home" : "⚠️ Away From Home (Use Transport to Return)"}
-                </span>
+                <span className="text-amber-400 font-extrabold">📍 Position: {exactPosition}</span>
+                • <span>🔥 Kitchen Gas: <strong>{gasKg} kg</strong></span>
+                {phoneOwned !== "None" && (
+                  <button
+                    onClick={() => setShowPhoneModal(true)}
+                    className="px-2 py-0.5 bg-cyan-500 text-slate-950 font-extrabold rounded-full text-[10px] flex items-center gap-1"
+                  >
+                    <Smartphone className="w-3 h-3" /> Open {phoneOwned.replace("_", " ")}
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
-              <div className="text-[10px] text-slate-400 uppercase">Starter / Deposit (g₦)</div>
+              <div className="text-[10px] text-slate-400 uppercase">Working Capital (g₦)</div>
               <div className="font-extrabold text-sm text-amber-400">{starterBalance.toLocaleString()} g₦</div>
             </div>
             <div className="bg-slate-950 border border-emerald-900/60 rounded-xl px-3 py-1.5">
               <div className="text-[10px] text-emerald-400 uppercase flex items-center gap-1">
-                Earned Cashout (100M c₦ = ₦5k) <Lock className="w-2.5 h-2.5" />
+                Earned c₦ (Cashout Coming Soon) <Lock className="w-2.5 h-2.5" />
               </div>
               <div className="font-extrabold text-sm text-emerald-400">{earnedBalance.toLocaleString()} c₦</div>
             </div>
@@ -604,159 +686,144 @@ export default function LagosEmpireMasterEdition() {
       </header>
 
       <main className="max-w-6xl mx-auto p-4 space-y-3">
-        {/* RETURN HOME / TRANSPORT BAR (ALWAYS ACTIVE WHEN NOT AT HOME!) */}
-        {!isAtHome && (
-          <div className="bg-rose-950/40 border-2 border-rose-500/60 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div>
-              <span className="font-extrabold text-rose-300">
-                🚶🏾‍♂️ You are currently at: {exactPosition} (Your Home is in {shelterArea})
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => handleCommuteTo(shelterArea, "trek", true)}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg"
-              >
-                🚶🏾‍♂️ Trek Home to {shelterArea} (₦0)
-              </button>
-              <button
-                onClick={() => handleCommuteTo(shelterArea, "bus", true)}
-                className="px-2.5 py-1 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
-              >
-                🚐 Bus Home to {shelterArea} ({getTransportCosts(shelterArea).busCost.toLocaleString()} g₦)
-              </button>
-              <button
-                onClick={() => handleCommuteTo(shelterArea, "cab", true)}
-                className="px-2.5 py-1 bg-indigo-600 text-white font-extrabold rounded-lg"
-              >
-                🚕 Cab Home ({getTransportCosts(shelterArea).cabCost.toLocaleString()} g₦)
-              </button>
-              {carsOwned.length > 0 && (
-                <button
-                  onClick={() => handleCommuteTo(shelterArea, "car", true)}
-                  className="px-2.5 py-1 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
-                >
-                  🚗 Drive {activeCar} Home
-                </button>
-              )}
-            </div>
+        {/* PERSISTENT CONTEXT-AWARE LOW-STAT ADVISORY BANNER */}
+        {advisoryText && (
+          <div className="bg-red-600 text-white px-4 py-2.5 rounded-2xl font-extrabold text-xs flex items-center justify-between shadow-lg animate-pulse">
+            <span>{advisoryText}</span>
           </div>
         )}
 
-        {/* INTERACTIVE METERS WITH CLASSIC GAME [?] INDICATOR TOOLTIPS + CRITICAL HOSPITAL BAR! */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2">
-          <div className={`grid grid-cols-2 ${carsOwned.length > 0 ? "sm:grid-cols-8" : "sm:grid-cols-5"} gap-2`}>
-            <StatBar
-              icon={<Heart className="w-3.5 h-3.5 text-rose-400" />}
-              label="Health"
-              value={`${health}%`}
-              pct={health}
-              color="bg-rose-500"
-              onHelp={() =>
-                setActiveGuideTip("❤️ HEALTH INDICATOR: Drops if Belly hits 0% or you trek too far. Boost it by: Eating at Eateries, Cooking at Home, Working out at the Gym, visiting the Hospital, or hiring a House Maid!")
-              }
-            />
-            <StatBar
-              icon={<Zap className="w-3.5 h-3.5 text-amber-400" />}
-              label={`Energy (Cap ${maxEnergyCap}%)`}
-              value={`${energy}%`}
-              pct={energy}
-              color="bg-amber-500"
-              onHelp={() =>
-                setActiveGuideTip("⚡ ENERGY INDICATOR: Used for Jobs, Lectures & Trekking. Capped at 60% on a Bare Floor, 85% on a Foam Mattress, and 100% on a Royal King Bed! Boost by Sleeping at Home, Eating, or Maid Automation.")
-              }
-            />
-            <StatBar
-              icon={<Utensils className="w-3.5 h-3.5 text-orange-400" />}
-              label="Belly/Diet"
-              value={`${hunger}%`}
-              pct={hunger}
-              color="bg-orange-500"
-              onHelp={() =>
-                setActiveGuideTip("🍛 BELLY/DIET INDICATOR: Drops every hour. If it stays at 0%, you starve and collapse! Boost by: Entering any Area Public Eatery, Cooking with your Gas Stove at Home, or hiring a House Maid.")
-              }
-            />
-            <StatBar
-              icon={<Sparkles className="w-3.5 h-3.5 text-cyan-400" />}
-              label="Steeze/Respect"
-              value={`${steeze} pts`}
-              pct={Math.min(100, steeze)}
-              color="bg-cyan-500"
-              onHelp={() =>
-                setActiveGuideTip("✨ STEEZE & RESPECT INDICATOR: Determines your social class, marriage appeal, and VIP access. Boost by: Painting your room, buying a TV/Sofa, wearing a Corporate Suit, earning Degrees, or buying Cars!")
-              }
-            />
-            {/* NEW: CRITICAL MEDICAL CONDITION BAR */}
-            <StatBar
-              icon={<Stethoscope className="w-3.5 h-3.5 text-red-400" />}
-              label="Critical Risk"
-              value={`${criticalDangerPct}%`}
-              pct={criticalDangerPct}
-              color={criticalDangerPct > 70 ? "bg-red-600 animate-pulse" : "bg-emerald-500"}
-              onHelp={() =>
-                setActiveGuideTip("🚑 CRITICAL RISK BAR: If this bar reaches 85%-100% (from low Health/Belly), you will collapse and be rushed to the Hospital! Keep it low by eating regularly or hiring a Maid.")
-              }
-            />
+        {/* LIVE STREET TRANSIT COUNTDOWN BANNER (BLOCKS TELEPORTING!) */}
+        {timers.street_transit && (
+          <div className="bg-amber-500 text-slate-950 px-4 py-3 rounded-2xl font-extrabold text-sm flex items-center justify-between shadow-xl">
+            <span>{inTransitLabel}</span>
+            <span className="bg-slate-950 text-amber-400 px-3 py-1 rounded-xl text-xs">
+              ⏳ Arriving in {formatSecs(timers.street_transit)}
+            </span>
+          </div>
+        )}
 
+        {/* METERS BAR */}
+        <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-3 space-y-2 shadow-md">
+          <div className={`grid grid-cols-2 ${carsOwned.length > 0 ? "sm:grid-cols-7" : "sm:grid-cols-4"} gap-2`}>
+            <StatBar icon={<Heart className="w-3.5 h-3.5 text-rose-400" />} label="Health" value={`${health}%`} pct={health} color="bg-rose-500" onHelp={() => setActiveGuideTip("❤️ HEALTH: Restored to 100% at Hospital (grants 48h Shield) or by eating at Eateries / cooking with kg Gas at Home.")} />
+            <StatBar icon={<Zap className="w-3.5 h-3.5 text-amber-400" />} label={`Energy (Cap ${maxEnergyCap}%)`} value={`${energy}%`} pct={energy} color="bg-amber-500" onHelp={() => setActiveGuideTip("⚡ ENERGY: Drains when trekking, studying, or bricklaying. Travel back to My Home on the Map to sleep!")} />
+            <StatBar icon={<Utensils className="w-3.5 h-3.5 text-orange-400" />} label="Belly/Diet" value={`${hunger}%`} pct={hunger} color="bg-orange-500" onHelp={() => setActiveGuideTip("🍛 BELLY/DIET: Cook at Home (uses 0.4kg Gas + 1 Raw Food) or travel to an Area Public Eatery.")} />
+            <StatBar icon={<Sparkles className="w-3.5 h-3.5 text-cyan-400" />} label="Steeze / Pts" value={`${steeze} • 🌟${citizenPoints}`} pct={Math.min(100, steeze)} color="bg-cyan-500" onHelp={() => setActiveGuideTip("✨ STEEZE: Helps you bargain 15% discounts at Oshodi Market & Berger Car Dealership!")} />
             {carsOwned.length > 0 && (
               <>
-                <StatBar icon={<Fuel className="w-3.5 h-3.5 text-emerald-400" />} label="Petrol" value={`${carPetrol}%`} pct={carPetrol} color="bg-emerald-500" onHelp={() => setActiveGuideTip("⛽ PETROL: Visit any NNPC/Lekki Filling Station on the Map to refill.")} />
-                <StatBar icon={<Droplets className="w-3.5 h-3.5 text-cyan-400" />} label="Radiator" value={`${carRadiatorWater}%`} pct={carRadiatorWater} color="bg-cyan-500" onHelp={() => setActiveGuideTip("💧 RADIATOR WATER: Keeps your car engine from overheating. Top up at Mechanic or Filling Station.")} />
-                <StatBar icon={<Wrench className="w-3.5 h-3.5 text-purple-400" />} label="Engine" value={`${carEngineHealth}%`} pct={carEngineHealth} color="bg-purple-500" onHelp={() => setActiveGuideTip("🔧 CAR ENGINE HEALTH: Repair at Oshodi Mechanic Village.")} />
+                <StatBar icon={<Fuel className="w-3.5 h-3.5 text-emerald-400" />} label="Petrol" value={`${carPetrol}%`} pct={carPetrol} color="bg-emerald-500" />
+                <StatBar icon={<Droplets className="w-3.5 h-3.5 text-cyan-400" />} label="Radiator" value={`${carRadiatorWater}%`} pct={carRadiatorWater} color="bg-cyan-500" />
+                <StatBar icon={<Wrench className="w-3.5 h-3.5 text-purple-400" />} label="Engine" value={`${carEngineHealth}%`} pct={carEngineHealth} color="bg-purple-500" />
               </>
             )}
           </div>
-
-          {/* SHORT CLASSIC GAME INDICATOR EXPLANATION BAR */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-[11px] text-amber-300 flex items-center justify-between">
             <span>{activeGuideTip}</span>
             {hasHiredMaid && (
               <span className="text-emerald-400 font-bold shrink-0 ml-2">
-                👩🏾‍🍳 Maid Auto-Feed in: {formatSecs(maidTimerSecs)} (Satisfaction: {maidSatisfaction}%)
+                👩🏾‍🍳 Maid Auto-Meal in: {formatSecs(maidTimerSecs)} (Food Left: {maidWeeklyFoodLeft} • Gas: {gasKg}kg)
               </span>
             )}
           </div>
         </div>
 
         {/* EVENT LOG */}
-        <div className="bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 px-4 py-2 rounded-xl text-sm font-medium">
+        <div className="bg-slate-900 text-emerald-300 border border-emerald-700/60 px-4 py-2 rounded-xl text-xs font-bold shadow">
           🔔 {logMessage}
         </div>
 
         {/* =====================================================================
-            TAB 1: 🗺️ ILLUSTRATED 2D TOWN MAP & SUB-MAP (WITH FULL EATERY, MARKET & GYM PLANS!)
+            CORE TOWN MAP & BUILDING INTERIOR ENGINE (EVERYTHING REVOLVES AROUND THE MAP!)
            ===================================================================== */}
         {activeTab === "map" && (
           <div className="space-y-4 text-xs">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-extrabold text-base text-white">
-                  🗺️ {isMapZoomedOut ? "Lagos State Overview Map (5 Areas)" : `${area} Illustrated Town Street Map`}
+                <h2 className="font-extrabold text-base text-emerald-400">
+                  🗺️ {isMapZoomedOut ? "Lagos State Satellite Map (5 Areas)" : `${area} Illustrated Town Map (Click Any Building to See Distance & Travel)`}
                 </h2>
                 <p className="text-slate-400 text-[11px]">
-                  Click any building below to walk inside! Notice how your <strong>Exact Position</strong> updates when you enter a building.
+                  You cannot see inside a building until you travel to it! Click <strong>📋 Street Vacancy Stand (0.2 km)</strong> for job directions, or click <strong>🏡 My Home</strong> to return home.
                 </p>
               </div>
               <button
-                onClick={() => { setIsMapZoomedOut(!isMapZoomedOut); setEnteredBuildingId("None"); }}
+                onClick={() => { setIsMapZoomedOut(!isMapZoomedOut); setPendingTargetBuilding(null); }}
                 className="px-4 py-2 bg-amber-500 text-slate-950 font-extrabold rounded-xl flex items-center gap-1.5"
               >
                 {isMapZoomedOut ? <ZoomIn className="w-4 h-4" /> : <ZoomOut className="w-4 h-4" />}
-                {isMapZoomedOut ? `Enter ${area} Street` : "Zoom Out: View All 5 Lagos Areas"}
+                {isMapZoomedOut ? `Zoom In to ${area} Street` : "Zoom Out: Travel Across 5 Lagos Areas"}
               </button>
             </div>
 
+            {/* DISTANCE & FARE TICKET MODAL WHEN A BUILDING IS CLICKED (NO INSTANT TELEPORT!) */}
+            {pendingTargetBuilding && (
+              <div className="p-4 bg-slate-900 text-white border-2 border-amber-400 rounded-2xl shadow-2xl space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-extrabold text-sm text-amber-400 flex items-center gap-2">
+                    <Navigation className="w-4 h-4" /> Travel Ticket Required: {pendingTargetBuilding.icon} {pendingTargetBuilding.name} ({pendingTargetBuilding.distKm} km away)
+                  </h3>
+                  <button onClick={() => setPendingTargetBuilding(null)} className="text-xs text-slate-400 underline">Cancel</button>
+                </div>
+                <p className="text-slate-300 text-[11px]">
+                  You are currently at <strong>{exactPosition}</strong>. Choose how you want to travel <strong>{pendingTargetBuilding.distKm} km</strong> to unlock and enter <strong>{pendingTargetBuilding.name}</strong> {pendingTargetBuilding.id === "My_Home" && "(Return trip fare +25% applied)"}:
+                </p>
+                {(() => {
+                  const isHome = pendingTargetBuilding.id === "My_Home";
+                  const t = getStreetTransitTicket(pendingTargetBuilding, isHome);
+                  return (
+                    <div className="grid sm:grid-cols-4 gap-2.5">
+                      <button
+                        onClick={() => handleStartStreetTransit(pendingTargetBuilding, "trek", isHome)}
+                        className="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-left"
+                      >
+                        <div className="font-extrabold text-white">🚶🏾‍♂️ Trek ({t.km} km)</div>
+                        <div className="text-[10px] text-emerald-400">Cost: ₦0 • Time: {t.trekSecs}s • -{t.trekEnergy}% Energy</div>
+                      </button>
+                      <button
+                        onClick={() => handleStartStreetTransit(pendingTargetBuilding, "bus", isHome)}
+                        className="p-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500 rounded-xl text-left"
+                      >
+                        <div className="font-extrabold text-amber-300">🚐 Korope / Bus</div>
+                        <div className="text-[10px] text-white">Cost: {t.busCost.toLocaleString()} g₦ • Time: {t.busSecs}s</div>
+                      </button>
+                      <button
+                        onClick={() => handleStartStreetTransit(pendingTargetBuilding, "cab", isHome)}
+                        className="p-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-left"
+                      >
+                        <div className="font-extrabold text-white">🚕 Drop Cab</div>
+                        <div className="text-[10px] text-indigo-200">Cost: {t.cabCost.toLocaleString()} g₦ • Time: {t.cabSecs}s</div>
+                      </button>
+                      {carsOwned.length > 0 && (
+                        <button
+                          onClick={() => handleStartStreetTransit(pendingTargetBuilding, "car", isHome)}
+                          className="p-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-left"
+                        >
+                          <div className="font-extrabold text-white">🚗 Drive {activeCar}</div>
+                          <div className="text-[10px] text-emerald-100">Cost: ₦0 (-4% Petrol) • Time: {t.cabSecs}s</div>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* ZOOMED-OUT INTER-AREA STATE MAP */}
             {isMapZoomedOut ? (
-              <div className="grid sm:grid-cols-5 gap-3 bg-emerald-950/20 border-2 border-emerald-900/60 p-4 rounded-2xl">
+              <div className="grid sm:grid-cols-5 gap-3 bg-slate-900 text-white border-2 border-emerald-700 p-4 rounded-2xl">
                 {(["Berger", "Oshodi", "Yaba", "Surulere", "Lekki"] as AreaName[]).map((dest) => {
                   const isCurrent = area === dest;
-                  const costs = getTransportCosts(dest);
+                  const dist = Math.abs(AREA_COORDS[area] - AREA_COORDS[dest]) || 1;
+                  const busFare = dist * 1500;
+                  const cabFare = dist * 3500;
                   return (
-                    <div key={dest} className={`p-4 rounded-2xl border-2 flex flex-col justify-between space-y-3 ${isCurrent ? "bg-emerald-900/40 border-emerald-400" : "bg-slate-900 border-slate-800"}`}>
+                    <div key={dest} className={`p-4 rounded-2xl border-2 flex flex-col justify-between space-y-3 ${isCurrent ? "bg-emerald-950/60 border-emerald-400" : "bg-slate-950 border-slate-800"}`}>
                       <div>
                         <div className="text-2xl mb-1">🏙️ 🌳</div>
                         <div className="font-extrabold text-base text-white">📍 {dest}</div>
-                        {shelterArea === dest && <span className="inline-block mt-1 text-[10px] bg-indigo-600 px-2 py-0.5 rounded-full">🏠 My Home</span>}
+                        <div className="text-[10px] text-slate-400">{isCurrent ? "Standing in this Area" : `Distance: ~${dist * 6.5} km away`}</div>
+                        {shelterArea === dest && <span className="inline-block mt-1 text-[10px] bg-indigo-600 px-2 py-0.5 rounded-full">🏠 My Home Area</span>}
                       </div>
                       {isCurrent ? (
                         <button onClick={() => setIsMapZoomedOut(false)} className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl">
@@ -764,11 +831,53 @@ export default function LagosEmpireMasterEdition() {
                         </button>
                       ) : (
                         <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                          <button onClick={() => handleCommuteTo(dest, "trek")} className="w-full py-1.5 bg-slate-800 rounded-lg text-[10px]">🚶🏾‍♂️ Trek (₦0 • -{costs.trekEnergy}% En)</button>
-                          <button onClick={() => handleCommuteTo(dest, "bus")} className="w-full py-1.5 bg-amber-500/20 border border-amber-500 text-amber-300 font-bold rounded-lg text-[10px]">🚐 Bus ({costs.busCost.toLocaleString()} g₦)</button>
-                          <button onClick={() => handleCommuteTo(dest, "cab")} className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg text-[10px]">🚕 Cab ({costs.cabCost.toLocaleString()} g₦)</button>
-                          {carsOwned.length > 0 && (
-                            <button onClick={() => handleCommuteTo(dest, "car")} className="w-full py-1.5 bg-emerald-600 text-white font-extrabold rounded-lg text-[10px]">🚗 Drive {activeCar}</button>
+                          <button
+                            onClick={() => {
+                              if (!spendMoney(busFare)) return;
+                              startCooldown("street_transit", dist * 15);
+                              setInTransitLabel(`🚐 Inter-Area Danfo Bus to ${dest}...`);
+                              setTimeout(() => {
+                                setInTransitLabel("");
+                                setArea(dest);
+                                setCurrentBuildingId("Street_Bus_Stop");
+                                setExactPosition(`🚐 At ${dest} Main Bus Stop`);
+                                setIsMapZoomedOut(false);
+                              }, dist * 15000);
+                            }}
+                            className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg text-[10px]"
+                          >
+                            🚐 Bus ({busFare.toLocaleString()} g₦ • {dist * 15}s)
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!spendMoney(cabFare)) return;
+                              startCooldown("street_transit", dist * 8);
+                              setInTransitLabel(`🚕 Inter-Area Cab to ${dest}...`);
+                              setTimeout(() => {
+                                setInTransitLabel("");
+                                setArea(dest);
+                                setCurrentBuildingId("Street_Bus_Stop");
+                                setExactPosition(`🚕 At ${dest} Main Bus Stop`);
+                                setIsMapZoomedOut(false);
+                              }, dist * 8000);
+                            }}
+                            className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg text-[10px]"
+                          >
+                            🚕 Cab ({cabFare.toLocaleString()} g₦ • {dist * 8}s)
+                          </button>
+                          {/* EMERGENCY COMMUNITY CREDIT RIDE IF STRANDED AT 0 CASH */}
+                          {starterBalance + earnedBalance < busFare && (
+                            <button
+                              onClick={() => {
+                                setHospitalLoanDebt((d) => d + 2000);
+                                setArea(dest);
+                                setIsMapZoomedOut(false);
+                                setLogMessage(`🚌 Took Emergency BRT Community Credit Ride to ${dest} (+2,000 c₦ transport debt)!`);
+                              }}
+                              className="w-full py-1 bg-rose-700 text-white font-bold rounded text-[10px]"
+                            >
+                              🆘 Stranded Credit Bus (+2k Debt)
+                            </button>
                           )}
                         </div>
                       )}
@@ -777,158 +886,329 @@ export default function LagosEmpireMasterEdition() {
                 })}
               </div>
             ) : (
-              <div className="rounded-3xl border-4 border-emerald-800/80 bg-gradient-to-b from-emerald-950/70 via-emerald-900/30 to-emerald-950/70 p-5 space-y-5 shadow-2xl">
+              /* ILLUSTRATED 2D STREET SUB-MAP WITH ROADS, TREES, HOME, VACANCY STAND & LIVE CONSTRUCTION SITES! */
+              <div className="rounded-3xl border-4 border-emerald-800 bg-slate-900 text-white p-5 space-y-5 shadow-2xl">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                  {/* 1. MY HOME ON THE MAP (IF HOME IS IN THIS AREA) */}
                   {shelterArea === area && (
                     <button
                       onClick={() => {
-                        setIsAtHome(true);
-                        setExactPosition(`🏠 Inside My Home (${shelterType} in ${shelterArea})`);
-                        setActiveTab("home");
+                        if (currentBuildingId === "My_Home") return;
+                        setPendingTargetBuilding({
+                          id: "My_Home",
+                          roofColor: "bg-emerald-500",
+                          icon: "🏠",
+                          name: `My Home (${shelterType})`,
+                          sub: "Return Home (+25% Return Fare)",
+                          distKm: 1.4,
+                        });
                       }}
-                      className="bg-slate-900/95 border-2 border-emerald-400 rounded-2xl overflow-hidden shadow-xl hover:scale-[1.02] transition flex flex-col"
+                      className={`bg-slate-950 border-2 ${
+                        currentBuildingId === "My_Home" ? "border-emerald-400 ring-2 ring-emerald-400" : "border-slate-700"
+                      } rounded-2xl overflow-hidden shadow-xl hover:scale-[1.02] transition flex flex-col`}
                     >
-                      <div className="w-full h-5 bg-emerald-500 flex items-center justify-center text-[10px] font-extrabold text-slate-950">
-                        MY RESIDENCE ROOF
+                      <div className="w-full h-5 bg-emerald-500 flex items-center justify-between px-2 text-[9px] font-extrabold text-slate-950">
+                        <span>MY RESIDENCE</span>
+                        <span>1.4 km</span>
                       </div>
                       <div className="p-3 flex flex-col items-center gap-1">
-                        <div className="text-3xl">🏡</div>
-                        <div className="font-extrabold text-white text-xs">{shelterType}</div>
-                        <div className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded text-[10px]">🚪 Enter My Home</div>
+                        <div className="text-3xl">🏠</div>
+                        <div className="font-extrabold text-white text-xs text-center">{shelterType}</div>
+                        <div className="text-[10px] text-emerald-400 font-bold">
+                          {currentBuildingId === "My_Home" ? "✓ You Are Inside Home" : "Click to Travel Home (1.4 km)"}
+                        </div>
                       </div>
                     </button>
                   )}
 
-                  {subMapBuildings[area].map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => {
-                        setEnteredBuildingId(b.id);
-                        setIsAtHome(false);
-                        setExactPosition(`🏢 Inside ${b.name} (${area})`);
-                        setLogMessage(`🚪 Walked inside ${b.name} in ${area}!`);
-                      }}
-                      className={`bg-slate-900/95 border-2 ${
-                        enteredBuildingId === b.id ? "border-amber-400 ring-2 ring-amber-400/50" : "border-slate-700"
-                      } rounded-2xl overflow-hidden shadow-xl hover:scale-[1.02] transition flex flex-col`}
-                    >
-                      <div className={`w-full h-5 ${b.roofColor} flex items-center justify-between px-2 text-[9px] font-extrabold text-white uppercase`}>
-                        <span>🏢 {area}</span>
-                        <span>■■</span>
-                      </div>
-                      <div className="p-3 flex flex-col items-center gap-1">
-                        <div className="text-3xl">{b.icon}</div>
-                        <div className="font-extrabold text-white text-xs text-center">{b.name}</div>
-                        <div className="text-[10px] text-slate-400 text-center">{b.sub}</div>
-                      </div>
-                    </button>
-                  ))}
+                  {/* 2. ACTIVE CONSTRUCTION SITES IN THIS AREA (NEEDS BRICKLAYERS!) */}
+                  {activeConstructionSites
+                    .filter((s) => s.area === area)
+                    .map((site) => (
+                      <button
+                        key={site.id}
+                        onClick={() => {
+                          if (currentBuildingId === site.id) return;
+                          setPendingTargetBuilding({
+                            id: site.id,
+                            roofColor: "bg-amber-500",
+                            icon: "🧱",
+                            name: site.projectName,
+                            sub: `Bricklayers: ${site.currentBricklayers}/${site.maxBricklayers} (Min ${site.minBricklayers})`,
+                            distKm: 1.8,
+                          });
+                        }}
+                        className={`bg-slate-950 border-2 ${
+                          currentBuildingId === site.id ? "border-amber-400 ring-2 ring-amber-400" : "border-amber-600/60"
+                        } rounded-2xl overflow-hidden shadow-xl hover:scale-[1.02] transition flex flex-col`}
+                      >
+                        <div className="w-full h-5 bg-amber-500 flex items-center justify-between px-2 text-[9px] font-extrabold text-slate-950">
+                          <span>LIVE SITE</span>
+                          <span>1.8 km</span>
+                        </div>
+                        <div className="p-3 flex flex-col items-center gap-1">
+                          <div className="text-3xl">🧱🏗️</div>
+                          <div className="font-extrabold text-amber-300 text-xs text-center">{site.projectName}</div>
+                          <div className="text-[10px] text-white">
+                            Workers: {site.currentBricklayers}/{site.maxBricklayers} (Min {site.minBricklayers})
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+
+                  {/* 3. AREA BUILDINGS */}
+                  {subMapBuildings[area].map((b) => {
+                    const isInside = currentBuildingId === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => {
+                          if (isInside) return;
+                          setPendingTargetBuilding(b);
+                        }}
+                        className={`bg-slate-950 border-2 ${
+                          isInside ? "border-amber-400 ring-2 ring-amber-400/50" : "border-slate-800"
+                        } rounded-2xl overflow-hidden shadow-xl hover:scale-[1.02] transition flex flex-col`}
+                      >
+                        <div className={`w-full h-5 ${b.roofColor} flex items-center justify-between px-2 text-[9px] font-extrabold text-white uppercase`}>
+                          <span>🏢 {area}</span>
+                          <span>{b.distKm} km</span>
+                        </div>
+                        <div className="p-3 flex flex-col items-center gap-1">
+                          <div className="text-3xl">{b.icon}</div>
+                          <div className="font-extrabold text-white text-xs text-center">{b.name}</div>
+                          <div className="text-[10px] text-slate-400 text-center">{b.sub}</div>
+                          <div className="mt-1 px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-[10px] text-emerald-300 font-bold">
+                            {isInside ? "✓ Inside Building" : `🚌 Travel (${b.distKm} km)`}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* ===============================================================
-                    INTERIORS OF CLICKED BUILDINGS ON THE STREET MAP
+                    STRICT FOG-OF-WAR INTERIOR: ONLY SHOWS THE BUILDING YOU TRAVELED INTO!
                    =============================================================== */}
 
-                {/* 1. PUBLIC EATERY & RESTAURANT INTERIOR (6 STANDARD MEALS!) */}
-                {enteredBuildingId === "Public_Eatery" && (
-                  <div className="p-4 bg-slate-950 border-2 border-amber-500 rounded-2xl space-y-3">
-                    <h3 className="font-extrabold text-sm text-amber-400">
-                      🍛 Inside {area} Public Eatery &amp; Restaurant (Select a Standard Meal to Boost Belly, Energy &amp; Health)
-                    </h3>
-                    <div className="grid sm:grid-cols-3 gap-2.5">
-                      {[
-                        { name: "🍞 Agege Bread & Ewa Agoyin", cost: 2000, belly: 35, en: 20, hp: 5 },
-                        { name: "🍛 Party Jollof Rice & Plantain", cost: 4500, belly: 50, en: 35, hp: 15 },
-                        { name: "🍲 Amala, Ewedu & Gbegiri + Assorted", cost: 6000, belly: 65, en: 45, hp: 20 },
-                        { name: "🥣 Pounded Yam & Egusi Soup + Goat Meat", cost: 8500, belly: 80, en: 55, hp: 25 },
-                        { name: "🐟 Catfish Pepper Soup & Chilled Malt", cost: 11000, belly: 75, en: 60, hp: 35 },
-                        { name: "🍗 Executive Mixed Grill, Prawns & Salad", cost: 18000, belly: 100, en: 85, hp: 50 },
-                      ].map((meal, idx) => (
-                        <div key={idx} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
-                          <div className="font-bold text-white">{meal.name}</div>
-                          <div className="text-[10px] text-emerald-400">
-                            +{meal.belly}% Belly • +{meal.en}% Energy • +{meal.hp}% Health
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (spendMoney(meal.cost)) {
-                                setHunger((b) => Math.min(100, b + meal.belly));
-                                setEnergy((e) => Math.min(maxEnergyCap, e + meal.en));
-                                setHealth((h) => Math.min(100, h + meal.hp));
-                                setLogMessage(`🍛 Ate ${meal.name} at ${area} Eatery! Belly +${meal.belly}%, Energy +${meal.en}%, Health +${meal.hp}%.`);
-                              }
-                            }}
-                            className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
-                          >
-                            Buy &amp; Eat ({meal.cost.toLocaleString()} g₦)
-                          </button>
-                        </div>
-                      ))}
+                {/* INTERIOR 0: MY HOME (COOK WITH KG GAS, SLEEP, PAINT, WATCH TV) */}
+                {currentBuildingId === "My_Home" && (
+                  <div className={`p-5 rounded-2xl border-2 space-y-4 ${wallBgMap[wallColor]}`}>
+                    <div className="flex flex-wrap justify-between items-center gap-2">
+                      <div>
+                        <h3 className="font-extrabold text-base text-emerald-300">🏠 Inside My Home: {shelterType} ({shelterArea})</h3>
+                        <p className="text-slate-300 text-[11px]">
+                          Bed: {bedTier} (Max {maxEnergyCap}% En) • Sofa: {chairTier} • TV: {tvTier} • Kitchen Gas: <strong>{gasKg} kg</strong> • Raw Food: <strong>{rawFoodServings} Meals</strong>
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          disabled={!!timers.sleep_cd}
+                          onClick={() => {
+                            startCooldown("sleep_cd", 60);
+                            setEnergy(maxEnergyCap);
+                            setGameDay((d) => d + 1);
+                            setLogMessage(`🛌 Slept overnight! Energy restored to ${maxEnergyCap}%.`);
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white font-extrabold rounded-xl"
+                        >
+                          🛌 Sleep Overnight (60s)
+                        </button>
+                        <button
+                          disabled={!!timers.cook_cd}
+                          onClick={() => {
+                            if (!hasCookingStove) return setLogMessage("❌ You don't own a Gas Stove! Travel 1.2 km to Oshodi Market to buy one.");
+                            if (gasKg < 0.4) return setLogMessage(`❌ Your gas cylinder is too low (${gasKg}kg)! Refill kg gas at Oshodi Market.`);
+                            if (rawFoodServings < 1) return setLogMessage("❌ No raw food at home! Buy Yam, Rice, or Beans at Oshodi Market.");
+                            startCooldown("cook_cd", 60);
+                            setGasKg((g) => Number(Math.max(0, g - 0.4).toFixed(1)));
+                            setRawFoodServings((r) => r - 1);
+                            setHunger(100);
+                            setEnergy(maxEnergyCap);
+                            setHealth((h) => Math.min(100, h + 15));
+                            setLogMessage(`🍳 Cooked a fresh meal at home! Used 0.4kg Gas (${(gasKg - 0.4).toFixed(1)}kg left). Belly 100%, Energy ${maxEnergyCap}%!`);
+                          }}
+                          className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl"
+                        >
+                          🍳 Cook at Home (-0.4kg Gas &amp; 1 Food)
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* 2. OSHODI MARKET & GAS DEPOT INTERIOR (DIFFERENT GAS SIZES & RAW FOOD BUNDLES!) */}
-                {enteredBuildingId === "Gas_Kitchen_Shop" && (
-                  <div className="p-4 bg-slate-950 border-2 border-emerald-500 rounded-2xl space-y-4">
-                    <h3 className="font-extrabold text-sm text-emerald-400">
-                      🔥 Inside {area} Central Market &amp; Cooking Gas Depot (Stoves, 3 Gas Sizes &amp; 4 Raw Food Bundles)
+                {/* INTERIOR 1: STREET VACANCY & NOTICE STAND (0.2 KM FROM HOME — DIRECTIONS ONLY, NO TELEPORT!) */}
+                {currentBuildingId === "Vacancy_Stand" && (
+                  <div className="p-4 bg-slate-950 border-2 border-emerald-500 rounded-2xl space-y-3">
+                    <h3 className="font-extrabold text-sm text-emerald-400 flex items-center gap-2">
+                      <ClipboardList className="w-4 h-4" /> 📋 Street Vacancy &amp; Community Notice Board (Directions Only — Travel on Map to Apply!)
                     </h3>
+                    <div className="grid sm:grid-cols-2 gap-2.5 text-[11px]">
+                      {activeConstructionSites.map((s) => (
+                        <div key={s.id} className="p-3 bg-slate-900 border border-amber-500/50 rounded-xl space-y-1">
+                          <div className="font-extrabold text-amber-300">🧱 LIVE BRICKLAYER VACANCY: {s.projectName}</div>
+                          <div>Pay: <strong>+{s.payPerShiftCn.toLocaleString()} c₦</strong> • Slots: {s.currentBricklayers}/{s.maxBricklayers} (Min {s.minBricklayers})</div>
+                          <div className="text-emerald-400 font-bold">👉 DIRECTIONS: Travel to {s.area} on the Map and click the Live Construction Site (1.8 km)!</div>
+                        </div>
+                      ))}
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                        <div className="font-extrabold text-rose-300">👩🏾‍🍳 DOMESTIC MAID VACANCIES ({agencyMaidVacanciesCount} Open Slots)</div>
+                        <div>Pay: <strong>+45,000 c₦ / shift</strong> • Req: Culinary/Home Cert</div>
+                        <div className="text-emerald-400 font-bold">👉 DIRECTIONS: Commute to Surulere and walk 1.7 km to the Domestic Maid Staffing Agency!</div>
+                      </div>
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                        <div className="font-extrabold text-cyan-300">🏥 HOSPITAL NURSE (160k c₦) &amp; DOCTOR (480k c₦) VACANCIES</div>
+                        <div>Req: Nursing Diploma/B.Sc or Medicine MBBS Degree</div>
+                        <div className="text-emerald-400 font-bold">👉 DIRECTIONS: Travel to Oshodi or Lekki General Hospital (1.5 km) to clock in!</div>
+                      </div>
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                        <div className="font-extrabold text-indigo-300">🎓 POLYTECHNIC &amp; UNIVERSITY LECTURER VACANCIES (280k–650k c₦)</div>
+                        <div>Req: Masters (M.Sc) or Doctorate (Ph.D)</div>
+                        <div className="text-emerald-400 font-bold">👉 DIRECTIONS: Commute to Yaba Polytechnic (1.6 km) or UNILAG Senate (2.9 km)!</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERIOR 2: LIVE CONSTRUCTION SITE (WORK AS BRICKLAYER — 1 TIME PER SITE, FULL DAY SHIFT, REDUCES BUILD TIME!) */}
+                {activeConstructionSites.map(
+                  (site, idx) =>
+                    currentBuildingId === site.id && (
+                      <div key={site.id} className="p-4 bg-slate-950 border-2 border-amber-500 rounded-2xl space-y-3">
+                        <h3 className="font-extrabold text-sm text-amber-400">
+                          🧱🏗️ Inside Active Construction Site: {site.projectName} ({site.area})
+                        </h3>
+                        <p className="text-slate-300">
+                          Countdown Remaining: <strong>{formatSecs(site.timeRemainingSecs)}</strong> • Bricklayers Worked:{" "}
+                          <strong className="text-emerald-400">
+                            {site.currentBricklayers} / {site.maxBricklayers} (Minimum {site.minBricklayers} Required to Finish!)
+                          </strong>
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            disabled={site.playerWorkedHere || site.currentBricklayers >= site.maxBricklayers || !!timers.brick_shift}
+                            onClick={() => {
+                              if (energy < 40) return setLogMessage("⚠️ Bricklaying is a full-day heavy job requiring at least 40% Energy!");
+                              startCooldown("brick_shift", 90);
+                              setEnergy((e) => Math.max(5, e - 40));
+                              setGameHour((h) => (h + 6) % 24); // Full-day heavy job advances clock 6 hours!
+                              if (hospitalShieldHoursLeft > 0) setHospitalShieldHoursLeft((sh) => Math.max(0, sh - 8));
+
+                              const up = [...activeConstructionSites];
+                              up[idx].currentBricklayers += 1;
+                              up[idx].playerWorkedHere = true; // 1-time per project lock!
+                              up[idx].timeRemainingSecs = Math.max(0, up[idx].timeRemainingSecs - 1800); // Speeds up build by 30 mins!
+                              setActiveConstructionSites(up);
+
+                              receiveEarnedMoney(site.payPerShiftCn, `Full-Day Bricklayer Shift at ${site.projectName}`);
+                            }}
+                            className="px-4 py-2.5 bg-amber-500 text-slate-950 font-extrabold rounded-xl disabled:opacity-40"
+                          >
+                            {site.playerWorkedHere
+                              ? "✓ You Already Worked on This Project (1-Time Limit)"
+                              : site.currentBricklayers >= site.maxBricklayers
+                              ? "🛑 Max Bricklayers Reached"
+                              : `🧱 Work Full-Day Bricklayer Shift (+${site.payPerShiftCn.toLocaleString()} c₦ • Speeds Build -30m)`}
+                          </button>
+
+                          {/* EMERGENCY NPC SUB-CONTRACTOR FOR THE OWNER IF SERVER IS QUIET */}
+                          <button
+                            onClick={() => {
+                              if (spendMoney(150000)) {
+                                const up = [...activeConstructionSites];
+                                up[idx].currentBricklayers = Math.min(up[idx].maxBricklayers, up[idx].currentBricklayers + 1);
+                                up[idx].timeRemainingSecs = 0;
+                                setActiveConstructionSites(up);
+                                setLogMessage("👷🏾‍♂️ Hired NPC Backup Bricklayer Team! Minimum worker requirement met & construction finished!");
+                              }
+                            }}
+                            className="px-4 py-2.5 bg-slate-800 border border-slate-600 text-white font-bold rounded-xl"
+                          >
+                            👷🏾‍♂️ Owner Option: Hire Backup NPC Bricklayer (150,000 g₦)
+                          </button>
+                        </div>
+                      </div>
+                    )
+                )}
+
+                {/* INTERIOR 3: OSHODI MARKET & KG GAS DEPOT (WITH PRICE BARGAINING & 8 FOOD BUNDLES!) */}
+                {currentBuildingId === "Gas_Kitchen_Shop" && (
+                  <div className="p-4 bg-slate-950 border-2 border-teal-500 rounded-2xl space-y-4">
+                    <div className="flex flex-wrap justify-between items-center gap-2">
+                      <h3 className="font-extrabold text-sm text-teal-400">
+                        🔥 Inside Oshodi Market &amp; Gas Depot (Kitchen Gas: {gasKg} kg • Raw Food: {rawFoodServings} Meals)
+                      </h3>
+                      <button
+                        disabled={bargainDiscountPct > 0}
+                        onClick={() => {
+                          const disc = steeze >= 30 ? 15 : 10;
+                          setBargainDiscountPct(disc);
+                          setLogMessage(`🗣️ You bargained with the Oshodi Market trader! Unlocked a ${disc}% discount on your next market purchase!`);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-xl"
+                      >
+                        {bargainDiscountPct > 0 ? `✓ ${bargainDiscountPct}% Bargain Active!` : "🗣️ Bargain / Price It Down (-10% to -15%)"}
+                      </button>
+                    </div>
+
                     <div className="grid sm:grid-cols-2 gap-4">
-                      {/* GAS CYLINDERS & STOVES */}
                       <div className="space-y-2">
-                        <div className="font-bold text-orange-400 uppercase">1. Stoves &amp; Gas Cylinder Refills</div>
+                        <div className="font-bold text-orange-400 uppercase">1. Gas Stove &amp; Refill by Kilogram (kg)</div>
                         <button
                           disabled={hasCookingStove}
-                          onClick={() => { if (spendMoney(35000)) { setHasCookingStove(true); setGasLevel(40); setLogMessage("🔥 Bought Tabletop Double Gas Burner!"); }}}
-                          className="w-full p-2.5 bg-slate-900 border border-orange-700 rounded-xl flex justify-between font-bold disabled:opacity-40"
+                          onClick={() => { if (spendMoney(35000, true)) { setHasCookingStove(true); setGasKg(2.0); setLogMessage("🔥 Bought Tabletop Gas Stove (+2.0kg starter gas)!"); }}}
+                          className="w-full p-2 bg-slate-900 border border-orange-700 rounded-xl flex justify-between font-bold disabled:opacity-40"
                         >
-                          <span>{hasCookingStove ? "✓ Owned: Gas Stove Burner" : "🔥 Buy Tabletop Gas Stove Burner"}</span>
+                          <span>{hasCookingStove ? "✓ Gas Stove Owned" : "🔥 Tabletop Gas Stove Burner"}</span>
                           <span className="text-amber-400">35,000 g₦</span>
                         </button>
                         {[
-                          { name: "⛽ 3kg Small Camp Gas Refill (+30% Gas)", addGas: 30, cost: 4500 },
-                          { name: "⛽ 12.5kg Standard Home Gas Cylinder (+75% Gas)", addGas: 75, cost: 12000 },
-                          { name: "⛽ 50kg Mega Family Gas Cylinder (100% Full)", addGas: 100, cost: 22000 },
+                          { label: "⛽ Refill 1.0 kg Cooking Gas", kg: 1.0, cost: 1200 },
+                          { label: "⛽ Refill 3.0 kg Camp Gas", kg: 3.0, cost: 3500 },
+                          { label: "⛽ Refill 6.0 kg Cylinder Gas", kg: 6.0, cost: 6800 },
+                          { label: "⛽ Refill 12.5 kg Full Home Cylinder", kg: 12.5, cost: 13500 },
                         ].map((g, i) => (
                           <button
                             key={i}
                             onClick={() => {
-                              if (!hasCookingStove) return setLogMessage("❌ Buy the Tabletop Gas Stove Burner above first!");
-                              if (spendMoney(g.cost)) {
-                                setGasLevel((lvl) => Math.min(100, lvl + g.addGas));
-                                setLogMessage(`⛽ Purchased ${g.name}!`);
+                              if (!hasCookingStove) return setLogMessage("❌ Buy the Gas Stove Burner first!");
+                              if (spendMoney(g.cost, true)) {
+                                setGasKg((prev) => Number((prev + g.kg).toFixed(1)));
+                                setLogMessage(`⛽ Refilled +${g.kg}kg Cooking Gas!`);
                               }
                             }}
-                            className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex justify-between font-bold"
+                            className="w-full p-2 bg-slate-900 border border-slate-800 rounded-xl flex justify-between font-bold"
                           >
-                            <span>{g.name}</span>
+                            <span>{g.label}</span>
                             <span className="text-amber-400">{g.cost.toLocaleString()} g₦</span>
                           </button>
                         ))}
                       </div>
 
-                      {/* RAW FOODSTUFF BUNDLES */}
-                      <div className="space-y-2">
-                        <div className="font-bold text-emerald-400 uppercase">2. Raw Foodstuff Market Bundles (Cook at Home)</div>
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-emerald-400 uppercase">2. Expanded Raw Foodstuff Shelf (8 Bundles)</div>
                         {[
-                          { name: "🫘 Bachelor Garri, Beans & Palm Oil Pack (3 Meals)", meals: 3, cost: 5000 },
-                          { name: "🍚 Raw Jollof Rice, Turkey & Tomato Crate (6 Meals)", meals: 6, cost: 11000 },
-                          { name: "🍠 Tuber of Yam, Plantain & Egg Basket (10 Meals)", meals: 10, cost: 18000 },
-                          { name: "🥩 Full Month Family Soup, Rice & Beef Bag (20 Meals)", meals: 20, cost: 32000 },
+                          { name: "🥖 Garri Ijebu, Sugar & Groundnut Pack (2 Meals)", meals: 2, cost: 3000 },
+                          { name: "🍜 Carton of Indomie & Crate of Eggs (4 Meals)", meals: 4, cost: 6500 },
+                          { name: "🫘 Oloyin Beans, Plantain & Palm Oil (5 Meals)", meals: 5, cost: 8500 },
+                          { name: "🍠 3 Heavy Tubers of Pounded Yam & Egusi (7 Meals)", meals: 7, cost: 12000 },
+                          { name: "🍚 Ofada Rice, Locust Beans & Assorted (8 Meals)", meals: 8, cost: 15000 },
+                          { name: "🍗 5kg Semovita, Okra & Frozen Turkey (12 Meals)", meals: 12, cost: 22000 },
+                          { name: "🥩 25kg Bag of Jollof Rice, Veg Oil & Beef (18 Meals)", meals: 18, cost: 34000 },
+                          { name: "👑 50kg Royal Family Provision & Ram Meat Crate (30 Meals)", meals: 30, cost: 55000 },
                         ].map((f, i) => (
                           <button
                             key={i}
                             onClick={() => {
-                              if (spendMoney(f.cost)) {
+                              if (spendMoney(f.cost, true)) {
                                 setRawFoodServings((r) => r + f.meals);
-                                setLogMessage(`🌾 Bought ${f.name}! (+${f.meals} Home Meals added to your kitchen).`);
+                                setLogMessage(`🌾 Bought ${f.name} (+${f.meals} Home Meals)!`);
                               }
                             }}
-                            className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex justify-between font-bold"
+                            className="w-full p-2 bg-slate-900 border border-slate-800 rounded-xl flex justify-between font-bold"
                           >
-                            <span>{f.name}</span>
-                            <span className="text-emerald-400">{f.cost.toLocaleString()} g₦</span>
+                            <span className="truncate pr-2">{f.name}</span>
+                            <span className="text-emerald-400 shrink-0">{f.cost.toLocaleString()} g₦</span>
                           </button>
                         ))}
                       </div>
@@ -936,15 +1216,45 @@ export default function LagosEmpireMasterEdition() {
                   </div>
                 )}
 
-                {/* 3. FIXED HOSPITAL INTERIOR (FILLS HEALTH, ENERGY & BELLY TO 100% + 2-DAY SHIELD!) */}
-                {enteredBuildingId === "Hospital" && (
-                  <div className="p-4 bg-slate-950 border-2 border-rose-500 rounded-2xl space-y-3">
+                {/* INTERIOR 4: PUBLIC EATERY (6 STANDARD MEALS) */}
+                {currentBuildingId === "Public_Eatery" && (
+                  <div className="p-4 bg-slate-950 border-2 border-amber-500 rounded-2xl space-y-3">
+                    <h3 className="font-extrabold text-sm text-amber-400">🍛 Inside {area} Public Eatery (6 Standard Meals)</h3>
+                    <div className="grid sm:grid-cols-3 gap-2.5">
+                      {[
+                        { name: "🍞 Agege Bread & Ewa Agoyin", cost: 2000, belly: 35, en: 20, hp: 5 },
+                        { name: "🍛 Party Jollof Rice & Plantain", cost: 4500, belly: 50, en: 35, hp: 15 },
+                        { name: "🍲 Amala, Ewedu & Gbegiri + Assorted", cost: 6000, belly: 65, en: 45, hp: 20 },
+                        { name: "🥣 Pounded Yam & Egusi Soup", cost: 8500, belly: 80, en: 55, hp: 25 },
+                        { name: "🐟 Catfish Pepper Soup & Malt", cost: 11000, belly: 75, en: 60, hp: 35 },
+                        { name: "🍗 Executive Mixed Grill & Salad", cost: 18000, belly: 100, en: 85, hp: 50 },
+                      ].map((m, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            if (spendMoney(m.cost)) {
+                              setHunger((b) => Math.min(100, b + m.belly));
+                              setEnergy((e) => Math.min(maxEnergyCap, e + m.en));
+                              setHealth((h) => Math.min(100, h + m.hp));
+                              setLogMessage(`🍛 Ate ${m.name} at ${area} Eatery!`);
+                            }
+                          }}
+                          className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-left"
+                        >
+                          <div className="font-bold text-white">{m.name}</div>
+                          <div className="text-emerald-400 font-bold">{m.cost.toLocaleString()} g₦ • +{m.belly}% Belly</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERIOR 5: HOSPITAL (TREATMENT + NURSE & DOCTOR VACANCIES!) */}
+                {currentBuildingId === "Hospital" && (
+                  <div className="p-4 bg-slate-950 border-2 border-rose-500 rounded-2xl space-y-4">
                     <h3 className="font-extrabold text-sm text-rose-400">
-                      🏥 Inside {area} General Hospital (Restores Health, Energy &amp; Belly to 100% + Grants 2-Day Protection Shield!)
+                      🏥 Inside {area} General Hospital (Patient Care + Nurse &amp; Doctor Vacancies)
                     </h3>
-                    <p className="text-slate-400">
-                      When treated here, your <strong>Health (100%)</strong>, <strong>Energy ({maxEnergyCap}%)</strong>, and <strong>Belly (100%)</strong> are completely filled, and you get a <strong>2-Day Medical Immunity Shield</strong> so your bars stay stable for 2 days!
-                    </p>
                     <div className="flex flex-wrap gap-3">
                       <button
                         onClick={() => {
@@ -952,89 +1262,466 @@ export default function LagosEmpireMasterEdition() {
                             setHealth(100);
                             setEnergy(maxEnergyCap);
                             setHunger(100);
-                            setHospitalImmunityDaysLeft(2);
-                            setLogMessage("🏥 Full Hospital Treatment Complete! Health, Energy & Belly restored to 100% + 2-Day Immunity Shield activated!");
+                            setHospitalShieldHoursLeft(48);
+                            setLogMessage("🏥 Discharged with 100% Health, Energy & Belly + 48-Hour Medical Shield!");
                           }
                         }}
-                        className="px-4 py-2.5 bg-emerald-500 text-slate-950 font-extrabold rounded-xl"
+                        className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl"
                       >
-                        💊 Pay Cash for Full Discharge (25,000 g₦ -&gt; 100% All Stats + 2-Day Shield)
+                        💊 Full Cash Treatment (25,000 g₦ to 100% All Stats + 48h Shield)
+                      </button>
+                    </div>
+
+                    <div className="border-t border-slate-800 pt-3 grid sm:grid-cols-2 gap-3">
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center">
+                        <div>
+                          <div className="font-bold text-white">👩🏾‍⚕️ Registered Nurse Shift</div>
+                          <div className="text-[10px] text-cyan-400">Req: ND/B.Sc Nursing • Pays +160,000 c₦</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!completedDegrees.some((d) => d.includes("Nursing"))) return setLogMessage("❌ Requires ND or B.Sc in Nursing!");
+                            receiveEarnedMoney(160000, `Registered Nurse Shift at ${area} Hospital`);
+                          }}
+                          className="px-3 py-1.5 bg-cyan-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          Work Shift
+                        </button>
+                      </div>
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center">
+                        <div>
+                          <div className="font-bold text-white">👨🏾‍⚕️ Chief Medical Doctor / Surgeon</div>
+                          <div className="text-[10px] text-amber-400">Req: B.Sc Medicine (MBBS) • Pays +480,000 c₦</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!completedDegrees.some((d) => d.includes("Medicine"))) return setLogMessage("❌ Requires B.Sc in Medicine & Surgery (MBBS)!");
+                            receiveEarnedMoney(480000, `Medical Doctor Surgery Shift at ${area} Hospital`);
+                          }}
+                          className="px-3 py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
+                        >
+                          Work Shift
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERIOR 6: DOMESTIC MAID STAFFING AGENCY (SURULERE — HIRE MAID AT 485K + 320K/WK OR WORK AS MAID!) */}
+                {currentBuildingId === "Domestic_Maid_Agency" && (
+                  <div className="p-4 bg-slate-950 border-2 border-rose-500 rounded-2xl space-y-4">
+                    <h3 className="font-extrabold text-sm text-rose-400">
+                      👩🏾‍🍳 Inside Surulere Domestic Maid Staffing Agency (Homeowners Request Here &amp; Agency Lists Vacancies!)
+                    </h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {/* FOR HOMEOWNERS */}
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div className="font-extrabold text-emerald-400">1. For Homeowners: Request Live-In Certified Maid</div>
+                        <p className="text-[11px] text-slate-300">
+                          Agency Placement Fee: <strong>485,000 g₦</strong> (25% reduced) • Weekly Salary + Bulk Food Basket: <strong>320,000 g₦ / week</strong> (14 Meals + uses 0.4kg Gas per auto-meal).
+                        </p>
+                        {!hasHiredMaid ? (
+                          <button
+                            onClick={() => {
+                              if (parkingSlots < 1) return setLogMessage("❌ You must live in at least a Flat or Duplex (with Maid quarters) before the Agency assigns a Maid!");
+                              if (spendMoney(485000)) {
+                                setHasHiredMaid(true);
+                                setMaidWeeklyFoodLeft(14);
+                                setAgencyMaidVacanciesCount((c) => c + 1); // Agency lists the job!
+                                setLogMessage("👩🏾‍🍳 Hired Certified Maid via Agency (485k) & Agency listed +1 Maid Vacancy on the board!");
+                              }
+                            }}
+                            className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
+                          >
+                            Pay Agency Placement Fee (485,000 g₦)
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              if (spendMoney(320000)) {
+                                setMaidWeeklyFoodLeft((f) => f + 14);
+                                setLogMessage("👩🏾‍🍳 Paid 320,000 g₦ Weekly Maid Salary & Bulk Food Basket (+14 Auto-Meals stocked)!");
+                              }
+                            }}
+                            className="w-full py-2 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
+                          >
+                            Pay Weekly Salary + Weekly Food Basket (320,000 g₦)
+                          </button>
+                        )}
+                      </div>
+
+                      {/* FOR WORKERS APPLYING TO THE AGENCY */}
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <div className="font-extrabold text-amber-400">
+                          2. Agency Maid Vacancies ({agencyMaidVacanciesCount} Open Household Placements)
+                        </div>
+                        <p className="text-[11px] text-slate-300">
+                          Requires: <strong>Master Culinary / Home Cert</strong> &amp; <strong>Health &gt;= 75%</strong>.
+                        </p>
+                        <button
+                          disabled={agencyMaidVacanciesCount <= 0 || !!timers.maid_job}
+                          onClick={() => {
+                            if (!specialistCerts.includes("Cert_Rice")) return setLogMessage("❌ Requires Master Culinary Certificate from Lagos Business School!");
+                            if (health < 75) return setLogMessage("❌ Domestic Agency requires 75%+ Health!");
+                            startCooldown("maid_job", 75);
+                            receiveEarnedMoney(45000, "Certified Domestic Maid Agency Placement Shift");
+                          }}
+                          className="w-full py-2 bg-rose-600 text-white font-extrabold rounded-lg disabled:opacity-40"
+                        >
+                          {timers.maid_job ? `⏳ Working (${formatSecs(timers.maid_job)})` : "Apply & Work Agency Maid Shift (+45,000 c₦)"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERIOR 7: SEPARATED SCHOOLS (YABA POLY, UNILAG, BUSINESS BLUEPRINT SCHOOL, DRIVING ACADEMY & HARVARD EMBASSY!) */}
+                {(currentBuildingId === "Yaba_Polytechnic" ||
+                  currentBuildingId === "Unilag_University" ||
+                  currentBuildingId === "Foreign_Embassy") && (
+                  <div className="p-4 bg-slate-950 border-2 border-indigo-500 rounded-2xl space-y-4">
+                    <h3 className="font-extrabold text-sm text-indigo-400">
+                      🎓 Inside{" "}
+                      {currentBuildingId === "Yaba_Polytechnic"
+                        ? "Yaba Polytechnic Campus (Choose Department + Poly Lecturer Job)"
+                        : currentBuildingId === "Unilag_University"
+                        ? "University of Lagos Senate (Medicine, Nursing, Architecture + Prof Job)"
+                        : "Lekki Foreign Embassy (Harvard, Oxford & Toronto Study Abroad)"}
+                    </h3>
+
+                    {enrolledProgram ? (
+                      <div className="p-3 bg-indigo-950/60 border border-indigo-400 rounded-xl flex justify-between items-center">
+                        <div>
+                          <div className="font-extrabold text-white">Studying: {enrolledProgram.name} ({enrolledProgram.major})</div>
+                          <div className="text-amber-300">Progress: {enrolledProgram.completedClasses}/10 Lectures (-{enrolledProgram.energyPerLecture}% En)</div>
+                        </div>
+                        <button
+                          disabled={!!timers.lec_cd}
+                          onClick={() => {
+                            if (energy < enrolledProgram.energyPerLecture) return setLogMessage(`⚠️ Need ${enrolledProgram.energyPerLecture}% Energy!`);
+                            startCooldown("lec_cd", enrolledProgram.timerSeconds);
+                            setEnergy((e) => Math.max(5, e - enrolledProgram.energyPerLecture));
+                            const nextC = enrolledProgram.completedClasses + 1;
+                            if (nextC >= 10) {
+                              setCompletedDegrees((d) => [...d, `${enrolledProgram.name} (${enrolledProgram.major})`]);
+                              setEnrolledProgram(null);
+                              setLogMessage(`🎓 Graduated with ${enrolledProgram.name} in ${enrolledProgram.major}!`);
+                            } else {
+                              setEnrolledProgram({ ...enrolledProgram, completedClasses: nextC });
+                            }
+                          }}
+                          className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl"
+                        >
+                          {timers.lec_cd ? `⏳ Lecture (${formatSecs(timers.lec_cd)})` : `Attend Lecture #${enrolledProgram.completedClasses + 1}/10`}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-3 gap-2.5">
+                        {(currentBuildingId === "Yaba_Polytechnic"
+                          ? [
+                              { id: "ND_Nurse", name: "Polytechnic ND", major: "Nursing Science", cost: 240000, en: 40, sec: 60, req: null },
+                              { id: "ND_Survey", name: "Polytechnic ND", major: "Land Surveying", cost: 240000, en: 40, sec: 60, req: null },
+                              { id: "HND_Tech", name: "Polytechnic HND", major: "Computer & Network Tech", cost: 380000, en: 50, sec: 75, req: "Polytechnic ND" },
+                            ]
+                          : currentBuildingId === "Unilag_University"
+                          ? [
+                              { id: "BSC_Med", name: "University B.Sc", major: "Medicine & Surgery (MBBS)", cost: 850000, en: 65, sec: 90, req: null },
+                              { id: "BSC_Nurse", name: "University B.Sc", major: "Nursing & Midwifery", cost: 680000, en: 65, sec: 90, req: null },
+                              { id: "BSC_Acc", name: "University B.Sc", major: "Accounting & Finance", cost: 680000, en: 65, sec: 90, req: null },
+                              { id: "MSC_Local", name: "Masters (M.Sc)", major: "Advanced Management", cost: 1450000, en: 80, sec: 100, req: "University B.Sc" },
+                              { id: "PHD_Local", name: "Doctorate (Ph.D)", major: "Academic Research", cost: 2900000, en: 95, sec: 120, req: "Masters (M.Sc)" },
+                            ]
+                          : [
+                              { id: "AB_Toronto", name: "Univ. of Toronto (M.Sc)", major: "Global Engineering", cost: 3200000, en: 80, sec: 100, req: "University B.Sc" },
+                              { id: "AB_Oxford", name: "Oxford University (M.Sc)", major: "International Finance", cost: 4200000, en: 85, sec: 110, req: "University B.Sc" },
+                              { id: "AB_Harvard", name: "Harvard University (Ph.D/MBA)", major: "Executive Leadership", cost: 6500000, en: 95, sec: 120, req: "Masters" },
+                            ]
+                        ).map((deg) => (
+                          <div key={deg.id} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                            <div className="font-bold text-white">{deg.name}</div>
+                            <div className="text-xs text-cyan-300">Major: {deg.major}</div>
+                            <div className="text-[10px] text-amber-400">{deg.cost.toLocaleString()} g₦ • -{deg.en}% En/class</div>
+                            <button
+                              onClick={() => {
+                                if (deg.req && !completedDegrees.some((d) => d.includes(deg.req))) {
+                                  return setLogMessage(`❌ Prerequisite: Complete ${deg.req} first!`);
+                                }
+                                if (spendMoney(deg.cost)) {
+                                  setEnrolledProgram({ id: deg.id, name: deg.name, major: deg.major, totalClasses: 10, completedClasses: 0, energyPerLecture: deg.en, timerSeconds: deg.sec });
+                                }
+                              }}
+                              className="w-full py-1.5 bg-indigo-600 text-white font-bold rounded-lg"
+                            >
+                              Enroll (10 Lectures)
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* CAMPUS LECTURER / PROFESSOR VACANCIES */}
+                    <div className="border-t border-slate-800 pt-3 flex flex-wrap gap-3">
+                      <button
+                        onClick={() => {
+                          if (!completedDegrees.some((d) => d.includes("M.Sc"))) return setLogMessage("❌ Lecturer Vacancy requires a Masters (M.Sc) degree!");
+                          receiveEarnedMoney(280000, "Campus Lecturer Teaching Shift");
+                        }}
+                        className="px-4 py-2 bg-cyan-600 text-white font-bold rounded-xl"
+                      >
+                        👨🏾‍🏫 Work as Campus Lecturer (Req: M.Sc • +280,000 c₦)
                       </button>
                       <button
                         onClick={() => {
-                          setHealth(100);
-                          setEnergy(maxEnergyCap);
-                          setHunger(100);
-                          setHospitalImmunityDaysLeft(2);
-                          setHospitalLoanDebt((d) => d + 60000);
-                          setLogMessage("🚑 Treated on Emergency Hospital Credit (+60,000 c₦ Loan)! All stats restored to 100% for 2 days.");
+                          if (!completedDegrees.some((d) => d.includes("Ph.D") || d.includes("Harvard"))) return setLogMessage("❌ Professor Chair requires a Doctorate (Ph.D) or Harvard degree!");
+                          receiveEarnedMoney(650000, "Senior University Professor Shift");
                         }}
-                        className="px-4 py-2.5 bg-rose-600 text-white font-extrabold rounded-xl"
+                        className="px-4 py-2 bg-amber-500 text-slate-950 font-extrabold rounded-xl"
                       >
-                        🚑 Treat on Emergency Loan (For Starving/Broke Players • 100% Restore + 2-Day Shield)
+                        🎓 Work as Senior Professor (Req: Ph.D/Harvard • +650,000 c₦)
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* 4. GYM INTERIOR WITH ENROLLMENT PLANS (1-HOUR, WEEKLY, MONTHLY VIP) */}
-                {enteredBuildingId === "Gym" && (
-                  <div className="p-4 bg-slate-950 border-2 border-orange-500 rounded-2xl space-y-3">
-                    <h3 className="font-extrabold text-sm text-orange-400">
-                      🏋🏾‍♂️ Inside {area} Fitness &amp; Weight Center (Current Plan: {gymPlan.replaceAll("_", " ")})
+                {/* INTERIOR 8: SEPARATE BUSINESS & BLUEPRINT SCHOOL (SURULERE — HIGHER PRICES + 3-STEP GUIDED FLOW!) */}
+                {currentBuildingId === "Business_Blueprint_School" && (
+                  <div className="p-4 bg-slate-950 border-2 border-emerald-500 rounded-2xl space-y-4">
+                    <h3 className="font-extrabold text-sm text-emerald-400">
+                      💼 Inside Lagos Business &amp; Blueprint School (Separate from Academic Schools!)
                     </h3>
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      {[
-                        { id: "1_Hour_Pass", name: "⏱️ 1-Hour Single Gym Pass", cost: 5000, desc: "Instant 1-time workout session" },
-                        { id: "Weekly_Plan", name: "📅 Weekly Gym Membership", cost: 25000, desc: "Unlimited workouts for 7 days" },
-                        { id: "Monthly_VIP", name: "👑 Monthly VIP Spa & Gym Plan", cost: 80000, desc: "Unlimited workouts + +25% Health & Steeze" },
-                      ].map((pl) => (
-                        <div key={pl.id} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
-                          <div className="font-bold text-white">{pl.name}</div>
-                          <div className="text-[10px] text-slate-400">{pl.desc}</div>
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-600 rounded-xl text-[11px] text-emerald-200">
+                      📘 <strong>HOW BLUEPRINTS WORK (3-STEP KNOWLEDGE &amp; CONSTRUCTION PIPELINE):</strong><br />
+                      <strong>Step 1 (Gain Knowledge Here):</strong> Purchase &amp; study the Blueprint below so you understand how to operate the business.<br />
+                      <strong>Step 2 (Paid Architectural Design):</strong> Travel to <strong>Yaba Architectural Studio</strong> on the Map and pay them to draw your structural plan.<br />
+                      <strong>Step 3 (Paid Construction &amp; Bricklayers):</strong> Travel to <strong>Berger Construction HQ</strong> to spawn your Live Construction Site!
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="font-bold text-amber-400 uppercase">1. Enterprise Operational Blueprints</div>
+                        {[
+                          { id: "BP_Food_Kiosk", name: "🏪 Roadside Food Kiosk Blueprint (2 Staff)", cost: 550000 },
+                          { id: "BP_Small_Eatery", name: "🍲 Small Eatery Blueprint (6 Staff)", cost: 1100000 },
+                          { id: "BP_Mega_Rest", name: "🏢 Mega Restaurant Blueprint (15 Staff)", cost: 2200000 },
+                          { id: "BP_Arch_Firm", name: "📐 Architectural & Survey Firm Blueprint", cost: 1800000 },
+                        ].map((bp) => (
                           <button
+                            key={bp.id}
+                            disabled={ownedBlueprints.includes(bp.id)}
                             onClick={() => {
-                              if (spendMoney(pl.cost)) {
-                                setGymPlan(pl.id as any);
-                                setHealth(100);
-                                setWeight((w) => Number(Math.max(54, w - 0.8).toFixed(1)));
-                                setSteeze((s) => s + 15);
-                                setLogMessage(`🏋🏾‍♂️ Enrolled in ${pl.name} & completed workout! Health 100%, -0.8kg weight, +15 Steeze!`);
+                              if (spendMoney(bp.cost)) {
+                                setOwnedBlueprints((p) => [...p, bp.id]);
+                                setLogMessage(`📘 Step 1 Complete (${bp.name})! Next: Travel to Yaba Architectural Studio on the Map for Step 2.`);
                               }
                             }}
-                            className="w-full py-1.5 bg-orange-500 text-slate-950 font-extrabold rounded-lg"
+                            className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex justify-between font-bold disabled:opacity-40"
                           >
-                            Enroll ({pl.cost.toLocaleString()} g₦)
+                            <span>{ownedBlueprints.includes(bp.id) ? `✓ Step 1 Done: ${bp.name}` : bp.name}</span>
+                            <span className="text-amber-400">{(bp.cost / 1000).toFixed(0)}k g₦</span>
                           </button>
-                        </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="font-bold text-cyan-400 uppercase">2. High-Tier Specialist &amp; Chartered Certifications</div>
+                        {[
+                          { id: "Cert_Rice", name: "🍚🍲 Combined Master of Rice, Jollof, Soup & Culinary Cert", cost: 550000 },
+                          { id: "Cert_Surveyor", name: "🧭 Licensed Land Surveyor Blueprint", cost: 850000 },
+                          { id: "Cert_Architect", name: "📐 Structural Architect Blueprint", cost: 1500000 },
+                          { id: "ICAN", name: "📊 ICAN Chartered Accountant Cert", cost: 950000 },
+                          { id: "PMP", name: "📋 PMP Executive Project Director Cert", cost: 1100000 },
+                        ].map((sc) => (
+                          <button
+                            key={sc.id}
+                            disabled={specialistCerts.includes(sc.id) || professionalCerts.includes(sc.id)}
+                            onClick={() => {
+                              if (spendMoney(sc.cost)) {
+                                setSpecialistCerts((s) => [...s, sc.id]);
+                                setProfessionalCerts((p) => [...p, sc.id]);
+                                setLogMessage(`🏅 Earned ${sc.name}!`);
+                              }
+                            }}
+                            className="w-full p-2.5 bg-slate-900 border border-cyan-800 rounded-xl flex justify-between font-bold disabled:opacity-40"
+                          >
+                            <span className="truncate pr-2">{sc.name}</span>
+                            <span className="text-cyan-400 shrink-0">{(sc.cost / 1000).toFixed(0)}k g₦</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERIOR 9: STEP 2 (YABA ARCHITECTURAL STUDIO) & STEP 3 (BERGER CONSTRUCTION YARD) */}
+                {currentBuildingId === "Architect_Firm" && (
+                  <div className="p-4 bg-slate-950 border-2 border-cyan-500 rounded-2xl space-y-3">
+                    <h3 className="font-extrabold text-sm text-cyan-400">
+                      📐 Inside Yaba Architectural Studio — STEP 2: Pay Architect to Stamp Your Blueprint Plan
+                    </h3>
+                    {ownedBlueprints.length === 0 ? (
+                      <p className="text-rose-400">❌ Complete Step 1 at Lagos Business &amp; Blueprint School in Surulere first!</p>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {ownedBlueprints.map((bp) => (
+                          <button
+                            key={bp}
+                            disabled={architectApprovedBps.includes(bp)}
+                            onClick={() => {
+                              if (spendMoney(350000)) {
+                                setArchitectApprovedBps((a) => [...a, bp]);
+                                setLogMessage(`📐 Step 2 Complete! Architect stamped ${bp}. Next: Travel to Julius Berger Construction HQ in Berger for Step 3!`);
+                              }
+                            }}
+                            className="p-3 bg-slate-900 border border-cyan-600 rounded-xl font-bold flex justify-between disabled:opacity-40"
+                          >
+                            <span>{architectApprovedBps.includes(bp) ? `✓ Step 2 Stamped: ${bp}` : `Pay Architect Contract for ${bp}`}</span>
+                            <span className="text-amber-400">350,000 g₦</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentBuildingId === "Builder_Yard" && (
+                  <div className="p-4 bg-slate-950 border-2 border-orange-500 rounded-2xl space-y-3">
+                    <h3 className="font-extrabold text-sm text-orange-400">
+                      🏗️ Inside Julius Berger Construction HQ — STEP 3: Award Construction Contract (Spawns Live Site Needing Bricklayers!)
+                    </h3>
+                    {architectApprovedBps.length === 0 ? (
+                      <p className="text-rose-400">❌ Complete Step 2 at Yaba Architectural Studio first!</p>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {architectApprovedBps.map((bp) => (
+                          <button
+                            key={bp}
+                            onClick={() => {
+                              if (spendMoney(950000)) {
+                                const newSiteId = `site_${Date.now()}`;
+                                setActiveConstructionSites((prev) => [
+                                  ...prev,
+                                  {
+                                    id: newSiteId,
+                                    projectName: `${username}'s ${bp.replace("BP_", "")}`,
+                                    ownerName: username,
+                                    area,
+                                    type: "Food",
+                                    timeRemainingSecs: 7200,
+                                    minBricklayers: 2,
+                                    maxBricklayers: 5,
+                                    currentBricklayers: 0,
+                                    playerWorkedHere: false,
+                                    payPerShiftCn: 14000,
+                                    maxStaff: 6,
+                                    maxCust: 45,
+                                    revPerHalfDay: 140000,
+                                  },
+                                ]);
+                                setLogMessage(`🏗️ Step 3 Started! Spawned Live Construction Site on the ${area} Street Map (Requires Min 2 Bricklayers)!`);
+                              }
+                            }}
+                            className="p-3 bg-orange-500 text-slate-950 font-extrabold rounded-xl flex justify-between"
+                          >
+                            <span>Award Construction Contract: {bp}</span>
+                            <span>950,000 g₦</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* INTERIOR 10: YABA TECH & PHONE PLAZA (BUY TORCHLIGHT PHONE OR SMARTPHONE!) */}
+                {currentBuildingId === "Electronics_Shop" && (
+                  <div className="p-4 bg-slate-950 border-2 border-purple-500 rounded-2xl space-y-3">
+                    <h3 className="font-extrabold text-sm text-purple-400">📱📺 Inside Yaba Tech, Smartphones &amp; TV Plaza</h3>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <button
+                        disabled={phoneOwned !== "None"}
+                        onClick={() => { if (spendMoney(25000)) { setPhoneOwned("Torchlight_Phone"); setLogMessage("📲 Bought Torchlight Phone!"); }}}
+                        className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-left disabled:opacity-40"
+                      >
+                        <div className="font-bold text-white">📲 Nokia Torchlight Phone</div>
+                        <div className="text-amber-400 font-bold">25,000 g₦ (SMS Alerts)</div>
+                      </button>
+                      <button
+                        disabled={phoneOwned === "Smartphone"}
+                        onClick={() => { if (spendMoney(150000)) { setPhoneOwned("Smartphone"); setLogMessage("📱 Bought iPhone/Android Smartphone! Click 'Open Smartphone' in the top bar anytime to check live vacancies!"); }}}
+                        className="p-3 bg-slate-900 border border-cyan-600 rounded-xl text-left disabled:opacity-40"
+                      >
+                        <div className="font-bold text-cyan-300">📱 Lagos Pro Smartphone</div>
+                        <div className="text-amber-400 font-bold">150,000 g₦ (Remote Vacancy Board!)</div>
+                      </button>
+                      <button
+                        onClick={() => { if (spendMoney(175000)) { setTvTier("55-Inch Smart TV"); setLogMessage("📺 Bought 55-Inch Smart TV!"); }}}
+                        className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-left"
+                      >
+                        <div className="font-bold text-white">📺 55-Inch 4K Smart TV</div>
+                        <div className="text-amber-400 font-bold">175,000 g₦ (+25 Steeze)</div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* OTHER INTERIORS (DRIVING ACADEMY, DEALERSHIP, AGENT) */}
+                {currentBuildingId === "Driving_School" && (
+                  <div className="p-4 bg-slate-950 border-2 border-yellow-500 rounded-2xl flex flex-wrap gap-3">
+                    <button disabled={drivingLessonsDone >= 3 || !!timers.drv_cd} onClick={() => { if (spendMoney(35000)) { startCooldown("drv_cd", 60); setDrivingLessonsDone((d) => d + 1); }}} className="px-4 py-2 bg-amber-500 text-slate-950 font-extrabold rounded-xl">
+                      {timers.drv_cd ? `⏳ Lesson (${formatSecs(timers.drv_cd)})` : drivingLessonsDone >= 3 ? "✓ 3/3 Lessons Done" : `Practical Driving Lesson (${drivingLessonsDone}/3) • 35,000 g₦`}
+                    </button>
+                    <button disabled={hasDriversLicense || drivingLessonsDone < 3} onClick={() => { if (spendMoney(75000)) { setHasDriversLicense(true); setLogMessage("🪪 Official FRSC Driver's License Issued!"); }}} className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl">
+                      {hasDriversLicense ? "✓ Licensed Driver" : "Get FRSC Driver's License (75,000 g₦)"}
+                    </button>
+                  </div>
+                )}
+
+                {currentBuildingId === "Auto_Dealership" && (
+                  <div className="p-4 bg-slate-950 border-2 border-emerald-500 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-extrabold text-sm text-emerald-400">🚗 Inside Berger Motor Fair (Bargain &amp; Buy Cars)</h3>
+                      <button onClick={() => { setBargainDiscountPct(10); setLogMessage("🗣️ Negotiated 10% off at the Car Dealership!"); }} className="px-3 py-1 bg-amber-500 text-slate-950 font-extrabold rounded-lg">🗣️ Bargain (-10%)</button>
+                    </div>
+                    <div className="grid sm:grid-cols-4 gap-2">
+                      {[
+                        { name: "Tokunbo Corolla", cost: 1350000 },
+                        { name: "Lexus RX350", cost: 3200000 },
+                        { name: "Mercedes G-Wagon", cost: 9500000 },
+                        { name: "Lamborghini Urus", cost: 14000000 },
+                      ].map((c, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            if (!hasDriversLicense) return setLogMessage("❌ Get your 75k Driver's License at Oshodi Driving Academy first!");
+                            if (carsOwned.length >= parkingSlots) return setLogMessage("❌ Rent/Buy a Flat or Duplex with parking first!");
+                            if (spendMoney(c.cost, true)) {
+                              setCarsOwned((p) => [...p, c.name]);
+                              setActiveCar(c.name);
+                              setLogMessage(`🏎️ Bought ${c.name}!`);
+                            }
+                          }}
+                          className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-left"
+                        >
+                          <div className="font-bold text-white">{c.name}</div>
+                          <div className="text-emerald-400 font-bold">{(c.cost / 1000000).toFixed(2)}M g₦</div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* OTHER MAP INTERIORS */}
-                {enteredBuildingId === "Driving_School" && (
-                  <div className="p-4 bg-slate-950 border-2 border-amber-500 rounded-2xl flex flex-wrap gap-3">
-                    <button disabled={drivingLessonsDone >= 3} onClick={() => { if (spendMoney(25000)) setDrivingLessonsDone((d) => d + 1); }} className="px-4 py-2 bg-amber-500 text-slate-950 font-extrabold rounded-xl">{drivingLessonsDone >= 3 ? "✓ 3/3 Lessons Done" : `Driving Lesson (${drivingLessonsDone}/3) • 25k`}</button>
-                    <button disabled={hasDriversLicense || drivingLessonsDone < 3} onClick={() => { if (spendMoney(75000)) { setHasDriversLicense(true); setLogMessage("🪪 FRSC Driver's License Issued!"); }}} className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl">{hasDriversLicense ? "✓ Licensed" : "Get FRSC License (75,000 g₦)"}</button>
-                  </div>
-                )}
-
-                {enteredBuildingId === "Agent_Office" && (
+                {currentBuildingId === "Agent_Office" && (
                   <div className="p-4 bg-slate-950 border-2 border-cyan-500 rounded-2xl space-y-3">
                     <h3 className="font-extrabold text-sm text-cyan-400">🏘️ Inside {area} Estate Agent Office</h3>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {[
-                        { name: `${area} Basic Single Room`, park: 0, rooms: 1, rent: 120000, buy: 8500000 },
                         { name: `${area} 2-Bedroom Flat`, park: 2, rooms: 2, rent: 320000, buy: 18000000 },
-                        { name: `${area} 3-Bedroom Flat`, park: 3, rooms: 3, rent: 650000, buy: 32000000 },
                         { name: `${area} 5-Bed Luxury Duplex`, park: 5, rooms: 5, rent: 1600000, buy: 60000000 },
                       ].map((p, i) => (
                         <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                          <div className="font-bold text-white">{p.name} (🅿️ {p.park} Parking • 🛏️ {p.rooms} Rooms)</div>
+                          <div className="font-bold text-white">{p.name} (🅿️ {p.park} Parking)</div>
                           <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => { if (spendMoney(p.rent)) { setShelterType(p.name); setShelterArea(area); setOwnershipMode("Rented"); setRentPer8Weeks(p.rent); setWeeksUntilRentDue(8); setParkingSlots(p.park); }}} className="py-1.5 bg-cyan-600 text-white font-bold rounded-lg">Rent/8Wks ({(p.rent / 1000).toFixed(0)}k)</button>
-                            <button onClick={() => { if (spendMoney(p.buy)) { setOwnedProperties((prev) => [...prev, { name: p.name, area, roomsAvailable: p.rooms, parking: p.park, paidAgentForm: false, isListedWithAgent: false, listedPricePerRoom: 250000, weeksLeftToCollect: 8 }]); setLogMessage(`🏰 Bought ${p.name}!`); }}} className="py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg">Buy ({(p.buy / 1000000).toFixed(1)}M)</button>
+                            <button onClick={() => { if (spendMoney(p.rent)) { setShelterType(p.name); setShelterArea(area); setParkingSlots(p.park); }}} className="py-1.5 bg-cyan-600 text-white font-bold rounded">Rent ({(p.rent / 1000).toFixed(0)}k)</button>
+                            <button onClick={() => { if (spendMoney(p.buy)) { setShelterType(p.name); setShelterArea(area); setOwnershipMode("Bought_Owned"); setParkingSlots(p.park); }}} className="py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded">Buy ({(p.buy / 1000000).toFixed(0)}M)</button>
                           </div>
                         </div>
                       ))}
@@ -1047,761 +1734,124 @@ export default function LagosEmpireMasterEdition() {
         )}
 
         {/* =====================================================================
-            TAB 2: 🏠 MY HOME + CERTIFIED HOUSE MAID (5-MINUTE AUTO-MAINTENANCE!)
-           ===================================================================== */}
-        {activeTab === "home" && (
-          <div className="grid md:grid-cols-3 gap-4 text-xs">
-            <div className={`md:col-span-2 rounded-2xl border-2 p-6 relative min-h-[380px] flex flex-col justify-between ${wallBgMap[wallColor]}`}>
-              {!isAtHome ? (
-                <div className="my-auto text-center bg-black/85 p-6 rounded-2xl border border-rose-500 space-y-3">
-                  <div className="text-3xl">🚌</div>
-                  <h3 className="font-extrabold text-base text-rose-400">You Are Currently Not at Home!</h3>
-                  <p className="text-slate-300">Your current position is: <strong>{exactPosition}</strong>. Take a Bus, Cab, or Trek back to your home in <strong>{shelterArea}</strong> above!</p>
-                  <button onClick={() => handleCommuteTo(shelterArea, "bus", true)} className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl">
-                    🚐 Take Bus Back Home to {shelterArea}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className="bg-black/65 px-3 py-1 rounded-lg font-extrabold text-emerald-300 block">🏠 {shelterType} ({shelterArea})</span>
-                      <span className="bg-black/65 px-3 py-1 rounded-lg text-amber-300 block">🧱 Wall: {wallColor} • Bed: {bedTier} • Sofa: {chairTier}</span>
-                      {hasHiredMaid && (
-                        <span className="bg-emerald-950/90 border border-emerald-500 px-3 py-1 rounded-lg text-emerald-300 font-bold block">
-                          👩🏾‍🍳 Certified House Maid Active (Auto-Feeds &amp; Maintains Health Every 5m • Next: {formatSecs(maidTimerSecs)})
-                        </span>
-                      )}
-                    </div>
-                    <div className="bg-slate-950/90 border border-slate-700 rounded-xl p-3 text-center">
-                      <div className="text-2xl">{tvTier === "None" ? "📦" : "📺"}</div>
-                      <div className="font-bold">{tvTier}</div>
-                      {tvTier !== "None" && (
-                        <button onClick={() => { if (hasLagosFlix) setShowTvModal(true); }} className="mt-1 px-2 py-1 bg-rose-600 text-white rounded text-[10px] font-bold">▶ Watch LagosFlix</button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-black/60 p-3 rounded-xl flex flex-wrap justify-between items-center gap-2">
-                    <span>🍲 Kitchen Stock: <strong>{rawFoodServings} Raw Meals</strong> • 🔥 Gas: <strong>{gasLevel}%</strong></span>
-                    <button
-                      onClick={() => {
-                        if (!hasCookingStove || gasLevel < 10 || rawFoodServings < 1) {
-                          return setLogMessage("❌ Visit Oshodi Market on the Map to buy a Gas Stove, Gas Refill & Raw Food Bundles!");
-                        }
-                        setGasLevel((g) => g - 10);
-                        setRawFoodServings((r) => r - 1);
-                        setHunger(100);
-                        setEnergy(maxEnergyCap);
-                        setHealth((h) => Math.min(100, h + 15));
-                        setLogMessage("🍳 Cooked a fresh meal at home! Belly 100%, Energy full, +15% Health!");
-                      }}
-                      className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
-                    >
-                      🍳 Cook Meal at Home
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* RIGHT PANEL: HIRE CERTIFIED MAID (5-MIN AUTOMATION) & FURNISHING */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-              <h2 className="font-bold text-sm text-emerald-400">👩🏾‍🍳 5-Minute House Maid Automation &amp; Home</h2>
-
-              {/* HIRE MAID CARD */}
-              <div className="p-3 bg-emerald-950/30 border border-emerald-600 rounded-xl space-y-2">
-                <div className="font-extrabold text-emerald-300">👩🏾‍🍳 Certified Domestic House Maid</div>
-                <p className="text-[11px] text-slate-300">
-                  Takes care of your house and delivers food to you <strong>wherever you are in Lagos every 5 minutes</strong>, keeping Health, Energy &amp; Belly at 90%!
-                </p>
-                {!hasHiredMaid ? (
-                  <button
-                    onClick={() => {
-                      if (spendMoney(150000)) {
-                        setHasHiredMaid(true);
-                        setMaidSatisfaction(100);
-                        setMaidTimerSecs(300);
-                        setLogMessage("👩🏾‍🍳 Hired a Certified House Maid! She will automatically maintain your Health, Energy & Belly every 5 minutes wherever you are!");
-                      }
-                    }}
-                    className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
-                  >
-                    Hire Certified House Maid (150,000 g₦)
-                  </button>
-                ) : (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-[11px]">
-                      <span>Maid Satisfaction: <strong>{maidSatisfaction}%</strong></span>
-                      <span className="text-amber-300">Next Auto-Care: {formatSecs(maidTimerSecs)}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (spendMoney(25000)) {
-                          setMaidSatisfaction(100);
-                          setHealth(100);
-                          setEnergy(maxEnergyCap);
-                          setHunger(100);
-                          setLogMessage("👩🏾‍🍳 Paid Maid Salary & Bonus! Maid Satisfaction 100% & immediate meal delivered!");
-                        }
-                      }}
-                      className="w-full py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
-                    >
-                      Pay Maid Allowance &amp; Restock (25,000 g₦)
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button disabled={!isAtHome} onClick={() => { setEnergy(maxEnergyCap); setGameDay((d) => d + 1); setLogMessage("🛌 Slept overnight!"); }} className="w-full py-2 bg-indigo-600 text-white font-extrabold rounded-xl disabled:opacity-40">🛌 Sleep Overnight ({maxEnergyCap}% Cap)</button>
-              <button onClick={() => { if (spendMoney(30000)) { setBedTier("Foam_Mattress"); setEnergy(85); }}} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between"><span>🛏️ Foam Mattress (85% Cap)</span><span className="text-amber-400">30k</span></button>
-              <button onClick={() => { if (spendMoney(95000)) { setBedTier("King_Bed"); setEnergy(100); }}} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between"><span>👑 King Bed (100% Cap)</span><span className="text-amber-400">95k</span></button>
-              <button onClick={() => { if (spendMoney(55000)) setChairTier("Cushion_Sofa"); }} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between"><span>🛋️ Cushion Sofa</span><span className="text-amber-400">55k</span></button>
-              <button onClick={() => { if (spendMoney(175000)) setTvTier("55-Inch Smart TV"); }} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl flex justify-between"><span>📺 55&quot; Smart TV</span><span className="text-amber-400">175k</span></button>
-            </div>
-          </div>
-        )}
-
-        {/* =====================================================================
-            TAB 3: 💼 STANDALONE JOB BUILDINGS (4 SEPARATE SUB-BUILDINGS!)
-           ===================================================================== */}
-        {activeTab === "jobs" && (
-          <div className="space-y-4 text-xs">
-            {/* 4 SEPARATE JOB BUILDING SELECTOR */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { id: "street", icon: "🧱", name: "1. Street Labor Yard", desc: "6 Daily Manual Jobs" },
-                { id: "specialist", icon: "👷🏾‍♂️", name: "2. Certified Specialist Guild", desc: "Surveyors, Architects & Chefs" },
-                { id: "corporate", icon: "🏢", name: "3. Corporate Career Towers", desc: "8 Degree-Gated Companies" },
-                { id: "social_gigs", icon: "📱", name: "4. Digital Social Gig Hub", desc: "5 Verified Online Tasks" },
-              ].map((jb) => (
-                <button
-                  key={jb.id}
-                  onClick={() => {
-                    setJobBuildingTab(jb.id as any);
-                    setIsAtHome(false);
-                    setExactPosition(`🏢 Inside ${jb.name} (${area})`);
-                  }}
-                  className={`p-3 rounded-2xl border-2 text-left transition ${
-                    jobBuildingTab === jb.id ? "bg-amber-500/20 border-amber-400" : "bg-slate-900 border-slate-800"
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{jb.icon}</div>
-                  <div className="font-extrabold text-white">{jb.name}</div>
-                  <div className="text-[10px] text-slate-400">{jb.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* STANDALONE BUILDING 1: STREET LABOR YARD */}
-            {jobBuildingTab === "street" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-                <h2 className="font-extrabold text-sm text-amber-400">🧱 Inside Street Labor Yard (Must Be in Job&apos;s Area • {hustlesDoneToday}/3 Shifts Today)</h2>
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {[
-                    { id: "st1", name: "📦 Oshodi Market Load Carrier", loc: "Oshodi" as AreaName, pay: 6500, cd: 60 },
-                    { id: "st2", name: "🧹 Oshodi Motor Park Sweeper", loc: "Oshodi" as AreaName, pay: 5500, cd: 60 },
-                    { id: "st3", name: "🧱 Berger Cement Bag Offloader", loc: "Berger" as AreaName, pay: 9500, cd: 75 },
-                    { id: "st4", name: "🍽️ Yaba Bukka Kitchen & Dishwashing", loc: "Yaba" as AreaName, pay: 8000, cd: 60 },
-                    { id: "st5", name: "🎉 Surulere Owambe Party Server", loc: "Surulere" as AreaName, pay: 10500, cd: 75 },
-                    { id: "st6", name: "🏗️ Lekki Duplex Site Bricklayer", loc: "Lekki" as AreaName, pay: 15000, cd: 90 },
-                  ].map((h) => (
-                    <div key={h.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-white">{h.name}</div>
-                        <div className="text-[10px] text-emerald-400">📍 {h.loc} • +{h.pay.toLocaleString()} c₦ • {h.cd}s Timer</div>
-                      </div>
-                      <button
-                        disabled={!!timers[h.id] || hustlesDoneToday >= 3}
-                        onClick={() => {
-                          if (area !== h.loc) return setLogMessage(`🚌 Travel to ${h.loc} first!`);
-                          startCooldown(h.id, h.cd);
-                          setHustlesDoneToday((d) => d + 1);
-                          setIsAtHome(false);
-                          setExactPosition(`Working ${h.name} in ${h.loc}`);
-                          receiveEarnedMoney(h.pay, h.name);
-                        }}
-                        className="px-3 py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
-                      >
-                        {timers[h.id] ? formatSecs(timers[h.id]) : "Work Shift"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* STANDALONE BUILDING 2: CERTIFIED SPECIALIST GUILD */}
-            {jobBuildingTab === "specialist" && (
-              <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl p-4 space-y-2.5">
-                <h2 className="font-extrabold text-sm text-emerald-400">👷🏾‍♂️ Inside Certified Specialist Guild (Requires Specialist Blueprints)</h2>
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {[
-                    { title: "Certified Rice & Jollof Head Chef", comp: "Lekki Mega Eatery", loc: "Lekki" as AreaName, req: "Cert_Rice", pay: 95000 },
-                    { title: "Certified Soup & Swallow Specialist", comp: "Surulere Bukka PLC", loc: "Surulere" as AreaName, req: "Cert_Soup", pay: 90000 },
-                    { title: "Certified Malt & Beverage Mixologist", comp: "Berger Drinks Depot", loc: "Berger" as AreaName, req: "Cert_Malt", pay: 85000 },
-                    { title: "Licensed Land Surveyor", comp: "Yaba Survey & Lands", loc: "Yaba" as AreaName, req: "Cert_Surveyor", pay: 240000 },
-                    { title: "Principal Structural Architect", comp: "Victoria Island Architects", loc: "Lekki" as AreaName, req: "Cert_Architect", pay: 420000 },
-                  ].map((sp, i) => (
-                    <div key={i} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-white">{sp.title} — {sp.comp}</div>
-                        <div className="text-[10px] text-amber-300">📍 {sp.loc} • Req: {sp.req} • +{sp.pay.toLocaleString()} c₦</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!specialistCerts.includes(sp.req)) return setLogMessage(`❌ Requires ${sp.req} from the School Blueprint building!`);
-                          if (area !== sp.loc) return setLogMessage(`🚌 Travel to ${sp.loc} first!`);
-                          receiveEarnedMoney(sp.pay, sp.title);
-                        }}
-                        className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg"
-                      >
-                        Work
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* STANDALONE BUILDING 3: CORPORATE CAREER TOWERS (8 COMPANIES) */}
-            {jobBuildingTab === "corporate" && (
-              <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-4 space-y-2.5">
-                <h2 className="font-extrabold text-sm text-cyan-400">🏢 Inside Corporate Career Towers (8 Distinct Employers)</h2>
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {[
-                    { title: "Microfinance Loan Clerk", comp: "Oshodi Trust Bank", loc: "Oshodi" as AreaName, deg: "Polytechnic ND", cert: null, pay: 65000 },
-                    { title: "IT Helpdesk Analyst", comp: "Yaba CcHub Tech", loc: "Yaba" as AreaName, deg: "Polytechnic ND", cert: null, pay: 90000 },
-                    { title: "Fleet Operations Supervisor", comp: "Julius Berger Yard", loc: "Berger" as AreaName, deg: "Polytechnic HND", cert: null, pay: 145000 },
-                    { title: "Brand Media Strategist", comp: "Surulere AdWorks", loc: "Surulere" as AreaName, deg: "Polytechnic HND", cert: null, pay: 165000 },
-                    { title: "Chartered Bank Auditor", comp: "ZenithMarina Lekki", loc: "Lekki" as AreaName, deg: "University B.Sc", cert: "ICAN", pay: 340000 },
-                    { title: "Cloud Network Architect", comp: "Paystack Yaba HQ", loc: "Yaba" as AreaName, deg: "University B.Sc", cert: "CISCO", pay: 460000 },
-                    { title: "Executive Project Director", comp: "Berger Infrastructure", loc: "Berger" as AreaName, deg: "Masters (M.Sc)", cert: "PMP", pay: 720000 },
-                    { title: "VP Offshore Oil & Gas", comp: "Chevron VI Tower", loc: "Lekki" as AreaName, deg: "Doctorate (Ph.D)", cert: "HSE", pay: 1450000 },
-                  ].map((c, i) => (
-                    <div key={i} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-white">{c.title} — {c.comp}</div>
-                        <div className="text-[10px] text-cyan-400">📍 {c.loc} • Req: {c.deg} {c.cert && `+ ${c.cert}`} • +{c.pay.toLocaleString()} c₦</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!completedDegrees.includes(c.deg)) return setLogMessage(`❌ Requires ${c.deg}!`);
-                          if (c.cert && !professionalCerts.includes(c.cert)) return setLogMessage(`❌ Requires ${c.cert} Pro Cert!`);
-                          if (area !== c.loc) return setLogMessage(`🚌 Travel to ${c.loc} first!`);
-                          receiveEarnedMoney(c.pay, `${c.title} at ${c.comp}`);
-                        }}
-                        className="px-3 py-1.5 bg-cyan-500 text-slate-950 font-extrabold rounded-lg"
-                      >
-                        Work
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* STANDALONE BUILDING 4: DIGITAL SOCIAL GIG HUB */}
-            {jobBuildingTab === "social_gigs" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-                <h2 className="font-extrabold text-sm text-emerald-400">📱 Inside Digital Social Gig Hub (3m–5m Cooldowns)</h2>
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {[
-                    { id: "sg1", title: "Follow JPC Official on X", reward: 2500, cd: 180 },
-                    { id: "sg2", title: "Follow Lagos Dev Board on LinkedIn", reward: 4000, cd: 240 },
-                    { id: "sg3", title: "Comment on Partner Instagram Reel", reward: 3500, cd: 200 },
-                    { id: "sg4", title: "Beta Test Partner Web App & Review", reward: 12000, cd: 300 },
-                  ].map((g) => (
-                    <div key={g.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                      <div className="flex justify-between font-bold"><span>{g.title}</span><span className="text-emerald-400">+{g.reward.toLocaleString()} c₦</span></div>
-                      {timers[g.id] ? (
-                        <div className="text-amber-400 font-bold text-center">⏳ Next Batch In: {formatSecs(timers[g.id])}</div>
-                      ) : (
-                        <div className="flex gap-1.5">
-                          <input type="text" placeholder="@handle proof..." value={gigProofInputs[g.id] || ""} onChange={(e) => setGigProofInputs((p) => ({ ...p, [g.id]: e.target.value }))} className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white" />
-                          <button onClick={() => { if (!gigProofInputs[g.id]) return; startCooldown(g.id, g.cd); receiveEarnedMoney(g.reward, g.title); }} className="px-3 py-1 bg-emerald-600 text-white font-bold rounded">Submit</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* =====================================================================
-            TAB 4: 🎓 SEPARATED EDUCATION BUILDINGS (4 DISTINCT CAMPUS BUILDINGS!)
-           ===================================================================== */}
-        {activeTab === "school" && (
-          <div className="space-y-4 text-xs">
-            {/* 4 STANDALONE EDUCATION BUILDINGS ON THE STREET */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { id: "poly", icon: "🏫", name: "1. Polytechnic Campus", desc: "ND & HND (10 Classes)" },
-                { id: "uni", icon: "🎓", name: "2. University & Ph.D Senate", desc: "B.Sc, M.Sc & Doctorate" },
-                { id: "blueprints", icon: "📘", name: "3. Business Blueprint Institute", desc: "Kiosk, Eatery & Firm BPs" },
-                { id: "pro_certs", icon: "🏅", name: "4. Professional & Culinary Academy", desc: "ICAN, PMP, Surveyor & Chefs" },
-              ].map((sb) => (
-                <button
-                  key={sb.id}
-                  onClick={() => {
-                    setSchoolBuildingTab(sb.id as any);
-                    setIsAtHome(false);
-                    setExactPosition(`🎓 Inside ${sb.name} (Yaba)`);
-                  }}
-                  className={`p-3 rounded-2xl border-2 text-left transition ${
-                    schoolBuildingTab === sb.id ? "bg-indigo-600/30 border-indigo-400" : "bg-slate-900 border-slate-800"
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{sb.icon}</div>
-                  <div className="font-extrabold text-white">{sb.name}</div>
-                  <div className="text-[10px] text-slate-400">{sb.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* ACTIVE LECTURE BAR IF ENROLLED */}
-            {enrolledProgram && (
-              <div className="p-4 bg-indigo-950/60 border-2 border-indigo-400 rounded-2xl flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-extrabold text-sm text-white">📚 Active Program: {enrolledProgram.name}</div>
-                  <div className="text-amber-300 font-bold">Progress: {enrolledProgram.completedClasses} / 10 Lectures Completed (-{enrolledProgram.energyPerLecture}% Energy/class)</div>
-                </div>
-                <button
-                  disabled={!!timers.lec_cd}
-                  onClick={() => {
-                    if (energy < enrolledProgram.energyPerLecture) return setLogMessage(`⚠️ Need ${enrolledProgram.energyPerLecture}% Energy!`);
-                    startCooldown("lec_cd", enrolledProgram.timerSeconds);
-                    setEnergy((e) => Math.max(0, e - enrolledProgram.energyPerLecture));
-                    const nextC = enrolledProgram.completedClasses + 1;
-                    if (nextC >= 10) {
-                      setCompletedDegrees((d) => [...d, enrolledProgram.name]);
-                      setEnrolledProgram(null);
-                      setLogMessage(`🎓 GRADUATED! Completed 10/10 lectures for ${enrolledProgram.name}!`);
-                    } else {
-                      setEnrolledProgram({ ...enrolledProgram, completedClasses: nextC });
-                    }
-                  }}
-                  className="px-4 py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl"
-                >
-                  {timers.lec_cd ? `⏳ Lecture (${formatSecs(timers.lec_cd)})` : `Attend Lecture #${enrolledProgram.completedClasses + 1}/10`}
-                </button>
-              </div>
-            )}
-
-            {/* BUILDING 1: POLYTECHNIC CAMPUS */}
-            {schoolBuildingTab === "poly" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid sm:grid-cols-2 gap-3">
-                {[
-                  { id: "ND", name: "Polytechnic ND", cost: 220000, en: 40, sec: 60, req: null },
-                  { id: "HND", name: "Polytechnic HND", cost: 350000, en: 50, sec: 75, req: "Polytechnic ND" },
-                ].map((d) => (
-                  <div key={d.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                    <div className="font-bold text-white text-sm">{d.name} (10 Lectures)</div>
-                    <div className="text-amber-400 font-bold">{d.cost.toLocaleString()} g₦ • -{d.en}% Energy/class {d.req && `• Req: ${d.req}`}</div>
-                    <button
-                      disabled={completedDegrees.includes(d.name) || !!enrolledProgram}
-                      onClick={() => {
-                        if (d.req && !completedDegrees.includes(d.req)) return setLogMessage(`❌ Requires ${d.req} first!`);
-                        if (spendMoney(d.cost)) setEnrolledProgram({ id: d.id, name: d.name, totalClasses: 10, completedClasses: 0, energyPerLecture: d.en, timerSeconds: d.sec });
-                      }}
-                      className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg disabled:opacity-40"
-                    >
-                      {completedDegrees.includes(d.name) ? "✓ Graduated" : "Enroll in Program"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* BUILDING 2: UNIVERSITY & POSTGRADUATE SENATE (B.Sc -> M.Sc -> Ph.D) */}
-            {schoolBuildingTab === "uni" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid sm:grid-cols-3 gap-3">
-                {[
-                  { id: "BSC", name: "University B.Sc", cost: 680000, en: 65, sec: 90, req: null },
-                  { id: "MSC", name: "Masters (M.Sc)", cost: 1400000, en: 80, sec: 100, req: "University B.Sc" },
-                  { id: "PHD", name: "Doctorate (Ph.D)", cost: 2800000, en: 95, sec: 120, req: "Masters (M.Sc)" },
-                ].map((d) => (
-                  <div key={d.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                    <div className="font-bold text-white text-sm">{d.name} (10 Lectures)</div>
-                    <div className="text-amber-400 font-bold">{d.cost.toLocaleString()} g₦ • -{d.en}% Energy</div>
-                    <div className="text-[10px] text-slate-400">{d.req ? `Prerequisite: ${d.req}` : "Direct University Entry"}</div>
-                    <button
-                      disabled={completedDegrees.includes(d.name) || !!enrolledProgram}
-                      onClick={() => {
-                        if (d.req && !completedDegrees.includes(d.req)) return setLogMessage(`❌ Requires ${d.req} first!`);
-                        if (spendMoney(d.cost)) setEnrolledProgram({ id: d.id, name: d.name, totalClasses: 10, completedClasses: 0, energyPerLecture: d.en, timerSeconds: d.sec });
-                      }}
-                      className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg disabled:opacity-40"
-                    >
-                      {completedDegrees.includes(d.name) ? "✓ Graduated" : "Enroll in Degree"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* BUILDING 3: BUSINESS BLUEPRINT INSTITUTE */}
-            {schoolBuildingTab === "blueprints" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid sm:grid-cols-2 gap-3">
-                {[
-                  { id: "BP_Food_Kiosk", name: "🏪 Roadside Food Kiosk Blueprint (2 Staff / 15 Cust)", cost: 400000 },
-                  { id: "BP_Small_Eatery", name: "🍲 Small Neighborhood Eatery Blueprint (6 Staff / 45 Cust)", cost: 900000 },
-                  { id: "BP_Mega_Rest", name: "🏢 Mega Fast-Food Restaurant Blueprint (15 Staff / 120 Cust)", cost: 1800000 },
-                  { id: "BP_Arch_Firm", name: "📐 Architectural & Surveying Firm Blueprint", cost: 1500000 },
-                ].map((bp) => (
-                  <div key={bp.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
-                    <div>
-                      <div className="font-bold text-white">{bp.name}</div>
-                      <div className="text-amber-400 font-bold">{bp.cost.toLocaleString()} g₦</div>
-                    </div>
-                    <button
-                      disabled={ownedBlueprints.includes(bp.id)}
-                      onClick={() => { if (spendMoney(bp.cost)) setOwnedBlueprints((p) => [...p, bp.id]); }}
-                      className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded-lg disabled:opacity-40"
-                    >
-                      {ownedBlueprints.includes(bp.id) ? "✓ Owned" : "Buy BP"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* BUILDING 4: PROFESSIONAL & SPECIALIST ACADEMY (RICE, SOUP, MALT, SURVEYOR, ARCHITECT, ICAN, PMP) */}
-            {schoolBuildingTab === "pro_certs" && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="font-bold text-emerald-400 uppercase">Culinary &amp; Construction Specialist Certs</div>
-                  {[
-                    { id: "Cert_Rice", name: "🍚 Master Rice & Jollof Certificate", req: null, cost: 180000 },
-                    { id: "Cert_Soup", name: "🍲 Traditional Soup & Swallow Certificate", req: null, cost: 180000 },
-                    { id: "Cert_Malt", name: "🍺 Malt & Beverage Brewing Certificate", req: null, cost: 150000 },
-                    { id: "Cert_Surveyor", name: "🧭 Licensed Land Surveyor Blueprint", req: "Polytechnic ND", cost: 450000 },
-                    { id: "Cert_Architect", name: "📐 Certified Structural Architect Blueprint", req: "University B.Sc", cost: 750000 },
-                  ].map((sc) => (
-                    <button
-                      key={sc.id}
-                      disabled={specialistCerts.includes(sc.id)}
-                      onClick={() => {
-                        if (sc.req && !completedDegrees.includes(sc.req)) return setLogMessage(`❌ Requires ${sc.req} first!`);
-                        if (spendMoney(sc.cost)) setSpecialistCerts((s) => [...s, sc.id]);
-                      }}
-                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between font-bold disabled:opacity-40"
-                    >
-                      <span>{specialistCerts.includes(sc.id) ? `✓ ${sc.name}` : sc.name}</span>
-                      <span className="text-emerald-400">{(sc.cost / 1000).toFixed(0)}k</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <div className="font-bold text-cyan-400 uppercase">Executive Professional Courses</div>
-                  {[
-                    { id: "ICAN", name: "📊 ICAN Chartered Accountant (Req: B.Sc)", req: "University B.Sc", cost: 350000 },
-                    { id: "CISCO", name: "🌐 CISCO Network Architect (Req: ND)", req: "Polytechnic ND", cost: 450000 },
-                    { id: "PMP", name: "📋 PMP Project Director (Req: M.Sc)", req: "Masters (M.Sc)", cost: 520000 },
-                    { id: "HSE", name: "🦺 Offshore HSE Level 3 (Req: Ph.D)", req: "Doctorate (Ph.D)", cost: 680000 },
-                  ].map((pc) => (
-                    <button
-                      key={pc.id}
-                      disabled={professionalCerts.includes(pc.id)}
-                      onClick={() => {
-                        if (!completedDegrees.includes(pc.req)) return setLogMessage(`❌ Requires ${pc.req} first!`);
-                        if (spendMoney(pc.cost)) setProfessionalCerts((p) => [...p, pc.id]);
-                      }}
-                      className="w-full p-2.5 bg-slate-950 border border-cyan-800 rounded-xl flex justify-between font-bold disabled:opacity-40"
-                    >
-                      <span>{professionalCerts.includes(pc.id) ? `✓ ${pc.name}` : pc.name}</span>
-                      <span className="text-cyan-400">{(pc.cost / 1000).toFixed(0)}k</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* =====================================================================
-            TAB 5: 🏪 EATERY & ARCHITECTURAL OPERATIONS + AUTOMATED CUSTOMER COMMENTS
-           ===================================================================== */}
-        {activeTab === "empire" && (
-          <div className="space-y-4 text-xs">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-                <h2 className="font-bold text-sm text-amber-400">🏗️ Construct Eatery, Kiosk, or Architectural Firm</h2>
-                {[
-                  { name: "Roadside Food Kiosk", type: "Food" as const, bp: "BP_Food_Kiosk", cost: 350000, maxStaff: 3, maxCust: 15, rev: 55000 },
-                  { name: "Small Neighborhood Eatery", type: "Food" as const, bp: "BP_Small_Eatery", cost: 850000, maxStaff: 6, maxCust: 45, rev: 150000 },
-                  { name: "Mega Fast-Food Restaurant", type: "Food" as const, bp: "BP_Mega_Rest", cost: 2200000, maxStaff: 15, maxCust: 120, rev: 450000 },
-                  { name: "Architectural & Survey Firm", type: "Arch_Firm" as const, bp: "BP_Arch_Firm", cost: 1800000, maxStaff: 8, maxCust: 30, rev: 380000 },
-                ].map((b, i) => (
-                  <div key={i} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
-                    <div>
-                      <div className="font-bold text-white">{b.name} (📍 {area})</div>
-                      <div className="text-[10px] text-slate-400">Cap: {b.maxCust} Cust • {b.cost.toLocaleString()} g₦</div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!ownedBlueprints.includes(b.bp)) return setLogMessage(`❌ Buy ${b.bp} in School -> Blueprints first!`);
-                        if (spendMoney(b.cost)) {
-                          setActiveBusinesses((prev) => [
-                            ...prev,
-                            {
-                              name: b.name,
-                              type: b.type,
-                              area,
-                              maxStaff: b.maxStaff,
-                              hiredStaff: 1,
-                              maxCustomers: b.maxCust,
-                              revenuePerHalfDay: b.rev,
-                              foodStockRemaining: 2,
-                              collectionsUsedThisCycle: 0,
-                              hasRiceSpecialist: false,
-                              hasSoupSpecialist: false,
-                              hasMaltSpecialist: false,
-                              hasCertifiedSurveyor: false,
-                              hasCertifiedArchitect: false,
-                            },
-                          ]);
-                          setLogMessage(`🏪 Opened ${b.name}! Recruit Certified Specialists on the right.`);
-                        }
-                      }}
-                      className="px-3 py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded-lg"
-                    >
-                      Launch
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3">
-                <h2 className="font-bold text-sm text-emerald-400">👩‍🍳📐 Recruit Certified Specialists &amp; Collect</h2>
-                {activeBusinesses.map((biz, idx) => (
-                  <div key={idx} className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                    <div className="flex justify-between font-bold">
-                      <span>{biz.name} ({biz.area})</span>
-                      <span className="text-emerald-400">Stock: {biz.foodStockRemaining} • Collect: {biz.collectionsUsedThisCycle}/2</span>
-                    </div>
-                    {biz.type === "Food" ? (
-                      <div className="grid grid-cols-3 gap-1">
-                        <button disabled={biz.hasRiceSpecialist} onClick={() => { if (spendMoney(60000)) { const up = [...activeBusinesses]; up[idx].hasRiceSpecialist = true; setActiveBusinesses(up); }}} className="p-1.5 bg-slate-900 border border-amber-600 rounded text-[10px] font-bold">{biz.hasRiceSpecialist ? "✓ Rice Chef" : "+ Rice Cert (60k)"}</button>
-                        <button disabled={biz.hasSoupSpecialist} onClick={() => { if (spendMoney(60000)) { const up = [...activeBusinesses]; up[idx].hasSoupSpecialist = true; setActiveBusinesses(up); }}} className="p-1.5 bg-slate-900 border border-orange-600 rounded text-[10px] font-bold">{biz.hasSoupSpecialist ? "✓ Soup Chef" : "+ Soup Cert (60k)"}</button>
-                        <button disabled={biz.hasMaltSpecialist} onClick={() => { if (spendMoney(50000)) { const up = [...activeBusinesses]; up[idx].hasMaltSpecialist = true; setActiveBusinesses(up); }}} className="p-1.5 bg-slate-900 border border-cyan-600 rounded text-[10px] font-bold">{biz.hasMaltSpecialist ? "✓ Malt Cert" : "+ Malt Cert (50k)"}</button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button disabled={biz.hasCertifiedSurveyor} onClick={() => { if (spendMoney(120000)) { const up = [...activeBusinesses]; up[idx].hasCertifiedSurveyor = true; setActiveBusinesses(up); }}} className="p-1.5 bg-slate-900 border border-cyan-600 rounded text-[10px] font-bold">{biz.hasCertifiedSurveyor ? "✓ Surveyor" : "+ Surveyor (120k)"}</button>
-                        <button disabled={biz.hasCertifiedArchitect} onClick={() => { if (spendMoney(180000)) { const up = [...activeBusinesses]; up[idx].hasCertifiedArchitect = true; setActiveBusinesses(up); }}} className="p-1.5 bg-slate-900 border border-indigo-600 rounded text-[10px] font-bold">{biz.hasCertifiedArchitect ? "✓ Architect" : "+ Architect (180k)"}</button>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => { if (spendMoney(40000)) { const up = [...activeBusinesses]; up[idx].foodStockRemaining += 2; up[idx].collectionsUsedThisCycle = 0; setActiveBusinesses(up); }}} className="py-1.5 bg-amber-500 text-slate-950 font-extrabold rounded">🍲 Stock Supplies (40k)</button>
-                      <button
-                        disabled={biz.foodStockRemaining <= 0 || biz.collectionsUsedThisCycle >= 2}
-                        onClick={() => {
-                          if (biz.type === "Arch_Firm" && (!biz.hasCertifiedSurveyor || !biz.hasCertifiedArchitect)) {
-                            return setLogMessage("❌ Recruit BOTH a Surveyor and Architect first!");
-                          }
-                          const certCount = (biz.hasRiceSpecialist ? 1 : 0) + (biz.hasSoupSpecialist ? 1 : 0) + (biz.hasMaltSpecialist ? 1 : 0);
-                          const payout = Math.round(biz.revenuePerHalfDay * (biz.type === "Food" ? 0.6 + certCount * 0.35 : 1.5));
-                          const up = [...activeBusinesses];
-                          up[idx].foodStockRemaining -= 1;
-                          up[idx].collectionsUsedThisCycle += 1;
-                          setActiveBusinesses(up);
-                          receiveEarnedMoney(payout, biz.name);
-                        }}
-                        className="py-1.5 bg-emerald-500 text-slate-950 font-extrabold rounded disabled:opacity-40"
-                      >
-                        💰 Collect ({biz.collectionsUsedThisCycle}/2)
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* =====================================================================
-            TAB 6: 🗳️ POLITICS (MUST PHYSICALLY STAND INSIDE SECRETARIAT FOR 3 DAYS!)
-           ===================================================================== */}
-        {activeTab === "politics" && (
-          <div className="grid sm:grid-cols-3 gap-4 text-xs">
-            <div className="bg-slate-900 border-2 border-emerald-600/50 rounded-2xl p-4 space-y-3">
-              <h2 className="font-extrabold text-sm text-emerald-400">🏛️ 1. Party Secretariat Building</h2>
-              <p className="text-slate-400">
-                You must click <strong>&quot;Enter Party Secretariat&quot;</strong> and be physically present here when the day rolls over for <strong>3 Days</strong> (`{partyDaysAttended}/3 Days Attended`) to qualify for Nomination!
-              </p>
-              <button
-                onClick={() => {
-                  setIsAtHome(false);
-                  setExactPosition(`🏛️ Inside ${area} Party Secretariat Building`);
-                  setLogMessage(`🏛️ Entered ${area} Party Secretariat! Stay here across day rollovers to count your 3 required attendance days.`);
-                }}
-                className="w-full py-2 bg-slate-800 border border-emerald-500 text-emerald-300 font-bold rounded-xl"
-              >
-                🚪 Enter Party Secretariat Building
-              </button>
-              {partyStatus === "None" && (
-                <button onClick={() => { if (spendMoney(30000)) setPartyStatus("Member_JPC"); }} className="w-full py-2 bg-emerald-500 text-slate-950 font-extrabold rounded-xl">
-                  Pay JPC Membership Fee (30,000 g₦)
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (!exactPosition.includes("Party Secretariat")) return setLogMessage("❌ Click 'Enter Party Secretariat Building' above first!");
-                  setPartyDaysAttended((d) => Math.min(3, d + 1));
-                  setLogMessage(`🏛️ Attended Party Ward Session! Attendance: ${Math.min(3, partyDaysAttended + 1)}/3 Days.`);
-                }}
-                className="w-full py-2 bg-indigo-600 text-white font-bold rounded-xl"
-              >
-                ✍️ Sign Daily Party Attendance Register ({partyDaysAttended}/3 Days)
-              </button>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-amber-400">🗳️ 2. Electoral Commission HQ</h2>
-              <div>Secretariat Attendance: <strong>{partyDaysAttended} / 3 Days</strong></div>
-              <button
-                onClick={() => {
-                  if (partyStatus === "None" || partyDaysAttended < 3) return setLogMessage("❌ Must be a Party Member AND complete 3/3 Days inside the Party Secretariat first!");
-                  if (spendMoney(450000)) setNominationStatus("Submitted_Verified");
-                }}
-                className="w-full py-2 bg-amber-500 text-slate-950 font-extrabold rounded-xl"
-              >
-                {nominationStatus === "Submitted_Verified" ? "✓ Cleared Candidate" : "Buy Nomination Form (450,000 g₦)"}
-              </button>
-              <button disabled={hasVoted} onClick={() => { setHasVoted(true); receiveEarnedMoney(5000, "Voter Allowance"); }} className="w-full py-2 bg-emerald-600 text-white font-bold rounded-xl">Cast Ballot (+5,000 c₦)</button>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <h2 className="font-bold text-sm text-indigo-400">🎨 3. Multi-Agency Poster Showcase</h2>
-              {["SkyHigh Creative Agency (65k)", "Yaba Pixel Studios (50k)", "Lekki Prestige Media (95k)"].map((ag) => (
-                <button key={ag} onClick={() => { if (spendMoney(65000)) { setHiredAgenciesForPoster((p) => [...p, ag]); setCityBillboardText(`🗳️ VOTE ${username.toUpperCase()} — Poster by ${ag}`); }}} className="w-full p-2 bg-slate-950 border border-indigo-700 rounded-lg font-bold">Hire {ag}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* =====================================================================
-            TAB 7: 🏆 PROFILE DOSSIER (WITH PROGRESS BARS) & 100,000,000 c₦ = ₦5,000 CASHOUT!
+            TAB 2: 🏆 CENTRAL BANK (c₦ -> g₦ +25% CONVERTER & "COMING SOON" CASHOUT VAULT)
            ===================================================================== */}
         {activeTab === "profile" && (
           <div className="grid md:grid-cols-3 gap-4 text-xs">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-amber-400">🏆 {username}&apos;s Citizen Dossier &amp; Progress Bars</h2>
-              <div className="p-3 bg-gradient-to-br from-emerald-950 to-slate-950 border border-emerald-600 rounded-xl space-y-1">
+            <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-amber-400">🏆 {username}&apos;s Citizen Dossier</h2>
+              <div className="p-3 bg-slate-950 border border-emerald-600 rounded-xl">
                 <div className="text-[10px] text-emerald-300 uppercase">Total Net Worth</div>
-                <div className="text-lg font-extrabold text-white">{totalNetWorth.toLocaleString()} c₦</div>
-                <div className="text-xs font-bold text-amber-400">{richLevelTitle}</div>
+                <div className="text-lg font-extrabold">{totalNetWorth.toLocaleString()} g₦/c₦</div>
+                <div className="text-amber-400 font-bold">{richLevelTitle}</div>
               </div>
-
-              {/* PROGRESS BARS FOR EDUCATION & CASHOUT */}
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div>
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span>🎓 Academic &amp; Cert Progress</span>
-                    <span className="font-bold text-emerald-400">{academicProgressPct}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500" style={{ width: `${academicProgressPct}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span>💸 100M c₦ Cashout Target</span>
-                    <span className="font-bold text-amber-400">{Math.min(100, Math.round((earnedBalance / 100000000) * 100))}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, (earnedBalance / 100000000) * 100)}%` }} />
-                  </div>
-                </div>
-
-                <div className="pt-1 space-y-1 text-[11px]">
-                  <div>📍 <strong>Exact Position:</strong> {exactPosition}</div>
-                  <div>🎓 <strong>Degrees:</strong> {completedDegrees.join(" -> ") || "Building Progress..."}</div>
-                  <div>🍲📐 <strong>Specialist Certs:</strong> {specialistCerts.join(", ") || "None"}</div>
-                  <div>🏅 <strong>Pro Courses:</strong> {professionalCerts.join(", ") || "None"}</div>
-                  <div>👩🏾‍🍳 <strong>House Maid:</strong> {hasHiredMaid ? `Active (${maidSatisfaction}%)` : "None"}</div>
-                </div>
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
+                <div>📍 <strong>Position:</strong> {exactPosition}</div>
+                <div>🎓 <strong>Degrees:</strong> {completedDegrees.join(", ") || "Uneducated"}</div>
+                <div>🏅 <strong>Certifications:</strong> {specialistCerts.join(", ") || "None"}</div>
+                <div>📱 <strong>Phone:</strong> {phoneOwned} • 🪪 <strong>License:</strong> {hasDriversLicense ? "Verified" : "None"}</div>
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-sm text-cyan-400">💸 P2P Citizen Transfer</h2>
-              <input type="text" placeholder="Recipient @username..." value={transferRecipient} onChange={(e) => setTransferRecipient(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
-              <input type="number" placeholder="Amount..." value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
-              <button onClick={() => { const amt = Number(transferAmount); if (transferRecipient && amt > 0 && spendMoney(amt)) { setLogMessage(`💸 Sent ${amt.toLocaleString()} to ${transferRecipient}!`); setTransferAmount(""); }}} className="w-full py-2.5 bg-cyan-500 text-slate-950 font-extrabold rounded-xl">Send Transfer</button>
+            {/* CONVERT EARNED c₦ TO g₦ WITH +25% WORKING CAPITAL BONUS! */}
+            <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h2 className="font-bold text-sm text-cyan-400">🔄 Convert Earned c₦ to g₦ (+25% Bonus!)</h2>
+              <p className="text-slate-400 text-[11px]">
+                Need more working capital for blueprints, maids, or houses? Convert your Earned `c₦` into `g₦` and receive a <strong>+25% Bonus</strong>!
+              </p>
+              <input
+                type="number"
+                value={convertCnInput}
+                onChange={(e) => setConvertCnInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white"
+              />
+              <button
+                onClick={() => {
+                  const amt = Number(convertCnInput) || 0;
+                  if (amt <= 0 || earnedBalance < amt) return setLogMessage("❌ Not enough Earned c₦ to convert!");
+                  const bonusGn = Math.round(amt * 1.25);
+                  setEarnedBalance((e) => e - amt);
+                  setStarterBalance((s) => s + bonusGn);
+                  setLogMessage(`🔄 Converted ${amt.toLocaleString()} c₦ into +${bonusGn.toLocaleString()} g₦ (+25% Working Capital Bonus)!`);
+                }}
+                className="w-full py-2.5 bg-cyan-500 text-slate-950 font-extrabold rounded-xl"
+              >
+                Convert c₦ -&gt; g₦ (+25% Bonus Capital)
+              </button>
             </div>
 
-            {/* 100,000,000 c₦ = ₦5,000 CENTRAL BANK CASHOUT */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
-              <h2 className="font-bold text-sm text-emerald-400">🏦 Central Bank (100M c₦ = ₦5,000 Cashout)</h2>
-              <div className="p-2.5 bg-slate-950 border border-emerald-800/60 rounded-xl">
-                <div className="text-[10px] text-slate-400">300M Genesis Reserve Remaining:</div>
-                <div className="font-extrabold text-sm text-amber-400">{centralBankReserve.toLocaleString()} g₦</div>
-              </div>
+            {/* CENTRAL BANK BUY-IN & "COMING SOON" c₦ ACCUMULATION VAULT */}
+            <div className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 space-y-2.5">
+              <h2 className="font-bold text-sm text-emerald-400">🏦 Central Bank Reserve: {centralBankReserve.toLocaleString()} g₦</h2>
               {[
                 { naira: 500, gCash: 50000 },
                 { naira: 1000, gCash: 100000 },
                 { naira: 5000, gCash: 500000 },
                 { naira: 10000, gCash: 1000000 },
               ].map((t, i) => (
-                <button key={i} onClick={() => { setCentralBankReserve((r) => r - t.gCash); setStarterBalance((s) => s + t.gCash); }} className="w-full p-2 bg-slate-950 border border-amber-500/50 rounded-xl flex justify-between font-bold">
-                  <span>Buy {t.gCash.toLocaleString()} g₦</span><span className="text-amber-400">₦{t.naira.toLocaleString()}</span>
+                <button
+                  key={i}
+                  onClick={() => {
+                    setCentralBankReserve((r) => r - t.gCash);
+                    setStarterBalance((s) => s + t.gCash);
+                    setLogMessage(`💳 Bought ${t.gCash.toLocaleString()} g₦ for ₦${t.naira}!`);
+                  }}
+                  className="w-full p-2 bg-slate-950 border border-amber-500/50 rounded-xl flex justify-between font-bold"
+                >
+                  <span>Buy {t.gCash.toLocaleString()} g₦</span>
+                  <span className="text-amber-400">₦{t.naira.toLocaleString()}</span>
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  if (earnedBalance < 100000000) {
-                    return setLogMessage(`🔒 Minimum cashout is 100,000,000 c₦ (= ₦5,000 real cash)! Current Earned Balance: ${earnedBalance.toLocaleString()} c₦.`);
-                  }
-                  const nairaPayout = Math.floor((earnedBalance / 100000000) * 5000);
-                  setCentralBankReserve((r) => r + earnedBalance);
-                  setEarnedBalance(0);
-                  setLogMessage(`🏦 CASHOUT APPROVED! ₦${nairaPayout.toLocaleString()} sent to your Nigerian Bank Account!`);
-                }}
-                className="w-full py-2.5 bg-emerald-600 text-white font-extrabold rounded-xl"
-              >
-                💸 Withdraw Earned c₦ (100M c₦ = ₦5,000)
-              </button>
+
+              <div className="p-3 bg-emerald-950/40 border border-emerald-600 rounded-xl text-center space-y-1">
+                <div className="font-extrabold text-emerald-300">🔒 Real Naira Cashout: COMING SOON</div>
+                <div className="text-[10px] text-slate-300">
+                  Accumulate your Earned <strong>c₦ ({earnedBalance.toLocaleString()} c₦)</strong> now before the official Central Bank withdrawal window opens!
+                </div>
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {showTvModal && (
+      {/* SMARTPHONE REMOTE VACANCY MODAL (DIRECTIONS ONLY!) */}
+      {showPhoneModal && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-4">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-rose-400 text-sm">📺 LagosFlix Smart TV</h3>
-              <button onClick={() => setShowTvModal(false)} className="text-xs bg-slate-800 px-3 py-1 rounded-lg text-white">Close TV</button>
+          <div className="bg-slate-900 text-white border-2 border-cyan-400 rounded-2xl max-w-lg w-full p-5 space-y-3 text-xs">
+            <div className="flex justify-between items-center">
+              <h3 className="font-extrabold text-sm text-cyan-400 flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4" /> Lagos Live Vacancy App (Directions Only — Close Phone to Travel!)
+              </h3>
+              <button onClick={() => setShowPhoneModal(false)} className="px-2.5 py-1 bg-slate-800 rounded-lg">Close Phone</button>
             </div>
-            <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-              <iframe className="w-full h-full" src="https://www.youtube.com/embed/jfKfPfyJRdk" title="LagosFlix" allowFullScreen />
+            <div className="space-y-2">
+              {activeConstructionSites.map((s) => (
+                <div key={s.id} className="p-2.5 bg-slate-950 border border-amber-500 rounded-xl">
+                  <div className="font-bold text-amber-300">🧱 {s.projectName} ({s.area})</div>
+                  <div>Needs Bricklayers ({s.currentBricklayers}/{s.maxBricklayers}) • Pay: +{s.payPerShiftCn.toLocaleString()} c₦</div>
+                  <div className="text-emerald-400 font-bold">📍 Close phone &amp; travel to {s.area} on the Map!</div>
+                </div>
+              ))}
+              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
+                <div className="font-bold text-rose-300">👩🏾‍🍳 Surulere Domestic Maid Staffing Agency ({agencyMaidVacanciesCount} Open)</div>
+                <div className="text-emerald-400 font-bold">📍 Close phone &amp; travel to Surulere on the Map!</div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* STREAMLINED MAP-CENTRIC BOTTOM NAVIGATION */}
       <nav className="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-2 py-2 z-40">
-        <div className="max-w-4xl mx-auto grid grid-cols-7 gap-1">
+        <div className="max-w-md mx-auto grid grid-cols-2 gap-2">
           {[
-
-            { id: "map", label: "Town Map", icon: <Map className="w-4 h-4" /> },
-            { id: "home", label: "Home/Maid", icon: <Home className="w-4 h-4" /> },
-            { id: "jobs", label: "4 Job Hubs", icon: <Briefcase className="w-4 h-4" /> },
-            { id: "school", label: "4 Schools", icon: <GraduationCap className="w-4 h-4" /> },
-            { id: "empire", label: "Eatery/Arch", icon: <Building2 className="w-4 h-4" /> },
-            { id: "politics", label: "Politics", icon: <Vote className="w-4 h-4" /> },
-            { id: "profile", label: "100M Bank", icon: <Award className="w-4 h-4" /> },
+            { id: "map", label: "🗺️ Interactive Town Map (All Buildings)", icon: <Map className="w-4 h-4" /> },
+            { id: "profile", label: "🏦 Dossier & Central Bank (c₦/g₦)", icon: <Award className="w-4 h-4" /> },
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
-              className={`py-2 rounded-xl text-[10px] sm:text-[11px] font-bold flex flex-col items-center gap-1 transition ${
+              onClick={() => setActiveTab(t.id === "map" ? "map" : "profile")}
+              className={`py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition ${
                 activeTab === t.id ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
               }`}
             >
@@ -1817,16 +1867,15 @@ export default function LagosEmpireMasterEdition() {
 
 function StatBar({ icon, label, value, pct, color, onHelp }: any) {
   return (
-    <div className="bg-slate-950 rounded-xl p-2 border border-slate-800/80">
+    <div className="bg-slate-950 rounded-xl p-2 border border-slate-800">
       <div className="flex items-center justify-between text-[11px] mb-1">
         <span className="flex items-center gap-1 text-slate-300 truncate">{icon} {label}</span>
         <div className="flex items-center gap-1">
-          <span className="font-bold">{value}</span>
+          <span className="font-bold text-white">{value}</span>
           {onHelp && (
             <button
               onClick={onHelp}
               className="w-4 h-4 rounded-full bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-[10px] font-extrabold flex items-center justify-center"
-              title="Click to see what this indicator means and how to boost it"
             >
               ?
             </button>
